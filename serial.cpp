@@ -3,6 +3,31 @@
 #include <assert.h>
 #include <math.h>
 #include "common.h"
+#include<vector>
+
+
+#define density 0.0005
+#define NUM_CELLS 4
+
+
+
+
+void apply_forces_to_cell(std::vector<particle_t*> src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
+    for(int i = 0; i < src.size(); i++)
+        for(int j = 0; j < cell.size(); j++){
+            src[i]->ax = src[i]->ay = 0;
+		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
+        }
+
+}
+
+
+
+
+
+
+
+
 
 //
 //  benchmarking program
@@ -33,7 +58,29 @@ int main( int argc, char **argv )
 
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
     set_size( n );
+    
     init_particles( n, particles );
+        
+
+    double size = density*n;
+    double cell_size = size/NUM_CELLS;
+    //assume that grid is NUM_CELLS x NUM_CELLS
+    //
+    //XXX: use malloc instead of iteration
+    std::vector<particle_t*> cells[NUM_CELLS][NUM_CELLS]; 
+    // for(int i = 0; i < NUM_CELLS; i++){
+    //     for(int j=0; j < NUM_CELLS; j++){
+    //         cells[i][j] = std::vector<particle_t* >();
+    //     }
+    // }
+
+    for(int i = 0; i < n; i++){
+        //TODO: partition particles into cells
+        int cell_i = floor(particles[i].x / cell_size);
+        int cell_j = floor(particles[i].y / cell_size);
+        cells[cell_i][cell_j].push_back(&particles[i]); 
+
+    }
     
     //
     //  simulate a number of time steps
@@ -48,18 +95,97 @@ int main( int argc, char **argv )
         //
         //  compute forces
         //
-        for( int i = 0; i < n; i++ )
-        {
-            particles[i].ax = particles[i].ay = 0;
-            for (int j = 0; j < n; j++ )
-				apply_force( particles[i], particles[j],&dmin,&davg,&navg);
+
+        
+        for(int i = 0; i < NUM_CELLS; i++){
+            for(int j = 0; j < NUM_CELLS; j++){
+                //unrolling
+                //TODO: apply forces for subgrids
+                      apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
+                if(i==0 && j==0){
+                      apply_forces_to_cell(cells[i][j],cells[1][0], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[0][1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[1][1], &navg, &dmin, &davg);
+                } else if(i == NUM_CELLS -1 && j == NUM_CELLS - 1){
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg);
+                
+                } else if(i == NUM_CELLS - 1 && j == 0){
+                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg);
+
+                } else if(i == 0 && j == NUM_CELLS -1){
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg);
+                }else if(i == NUM_CELLS -1){
+                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                      
+                }else if(j == NUM_CELLS -1){
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                
+                }else if(i == 0){
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg);
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                      
+                }else if(j == 0){
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg);
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                }else{
+                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg);
+                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                }
+
+            }
         }
- 
+
+
         //
         //  move particles
         //
         for( int i = 0; i < n; i++ ) 
             move( particles[i] );		
+
+
+        // clearing the bins
+        
+        for(int i = 0; i < NUM_CELLS; i++){
+            for(int j=0; j < NUM_CELLS; j++){
+                cells[i][j].clear();
+            }
+        }
+
+
+        // re-constructing bins
+        for(int i = 0; i < n; i++){
+            //TODO: partition particles into cells
+            int cell_i = floor(particles[i].x / cell_size);
+            int cell_j = floor(particles[i].y / cell_size);
+
+            cells[cell_i][cell_j].push_back(&particles[i]); 
+        }
 
         if( find_option( argc, argv, "-no" ) == -1 )
         {
@@ -116,3 +242,6 @@ int main( int argc, char **argv )
     
     return 0;
 }
+
+
+
