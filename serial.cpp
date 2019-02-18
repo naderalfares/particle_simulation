@@ -62,7 +62,7 @@ int main( int argc, char **argv )
     init_particles( n, particles );
         
 
-    double size = density*n;
+    double size = sqrt(density*n);
     double cell_size = size/NUM_CELLS;
     //assume that grid is NUM_CELLS x NUM_CELLS
     //
@@ -91,7 +91,7 @@ int main( int argc, char **argv )
     {
         navg = 0;
         davg = 0.0;
-	    dmin = 1.0;
+	dmin = 1.0;
         //
         //  compute forces
         //
