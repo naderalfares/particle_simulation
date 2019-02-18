@@ -7,11 +7,10 @@
 
 
 #define density 0.0005
-#define NUM_CELLS 4
+#define CELL_SIZE 0.02
 
 
-
-
+// Function applies forces of particles of one cell to particles in another cell
 void apply_forces_to_cell(std::vector<particle_t*> src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
     for(int i = 0; i < src.size(); i++)
         for(int j = 0; j < cell.size(); j++){
@@ -20,15 +19,6 @@ void apply_forces_to_cell(std::vector<particle_t*> src, std::vector<particle_t*>
         }
 
 }
-
-
-
-
-
-
-
-
-
 //
 //  benchmarking program
 //
@@ -62,22 +52,22 @@ int main( int argc, char **argv )
     init_particles( n, particles );
         
 
-    double size = sqrt(density*n);
-    double cell_size = size/NUM_CELLS;
-    //assume that grid is NUM_CELLS x NUM_CELLS
+    double size = sqrt(density * n);
+    int numCells = ceil(size/CELL_SIZE);
+    //assume that grid is numCells x numCells
     //
     //XXX: use malloc instead of iteration
-    std::vector<particle_t*> cells[NUM_CELLS][NUM_CELLS]; 
-    // for(int i = 0; i < NUM_CELLS; i++){
-    //     for(int j=0; j < NUM_CELLS; j++){
+    std::vector<particle_t*> cells[numCells][numCells]; 
+    // for(int i = 0; i < numCells; i++){
+    //     for(int j=0; j < numCells; j++){
     //         cells[i][j] = std::vector<particle_t* >();
     //     }
     // }
 
     for(int i = 0; i < n; i++){
         //TODO: partition particles into cells
-        int cell_i = floor(particles[i].x / cell_size);
-        int cell_j = floor(particles[i].y / cell_size);
+        int cell_i = floor(particles[i].x / CELL_SIZE);
+        int cell_j = floor(particles[i].y / CELL_SIZE);
         cells[cell_i][cell_j].push_back(&particles[i]); 
 
     }
@@ -97,8 +87,8 @@ int main( int argc, char **argv )
         //
 
         
-        for(int i = 0; i < NUM_CELLS; i++){
-            for(int j = 0; j < NUM_CELLS; j++){
+        for(int i = 0; i < numCells; i++){
+            for(int j = 0; j < numCells; j++){
                 //unrolling
                 //TODO: apply forces for subgrids
                       apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
@@ -106,28 +96,28 @@ int main( int argc, char **argv )
                       apply_forces_to_cell(cells[i][j],cells[1][0], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[0][1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[1][1], &navg, &dmin, &davg);
-                } else if(i == NUM_CELLS -1 && j == NUM_CELLS - 1){
+                } else if(i == numCells -1 && j == numCells - 1){
                       apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg);
                 
-                } else if(i == NUM_CELLS - 1 && j == 0){
+                } else if(i == numCells - 1 && j == 0){
                       apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg);
 
-                } else if(i == 0 && j == NUM_CELLS -1){
+                } else if(i == 0 && j == numCells -1){
                       apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg);
-                }else if(i == NUM_CELLS -1){
+                }else if(i == numCells -1){
                       apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
                       apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
                       
-                }else if(j == NUM_CELLS -1){
+                }else if(j == numCells -1){
                       apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
                       apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
@@ -158,8 +148,8 @@ int main( int argc, char **argv )
                       apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
                 }
 
-            }
-        }
+            } // end of j loop
+        } // end of i loop
 
 
         //
@@ -171,8 +161,8 @@ int main( int argc, char **argv )
 
         // clearing the bins
         
-        for(int i = 0; i < NUM_CELLS; i++){
-            for(int j=0; j < NUM_CELLS; j++){
+        for(int i = 0; i < numCells; i++){
+            for(int j=0; j < numCells; j++){
                 cells[i][j].clear();
             }
         }
@@ -181,8 +171,8 @@ int main( int argc, char **argv )
         // re-constructing bins
         for(int i = 0; i < n; i++){
             //TODO: partition particles into cells
-            int cell_i = floor(particles[i].x / cell_size);
-            int cell_j = floor(particles[i].y / cell_size);
+            int cell_i = floor(particles[i].x / CELL_SIZE);
+            int cell_j = floor(particles[i].y / CELL_SIZE);
 
             cells[cell_i][cell_j].push_back(&particles[i]); 
         }
