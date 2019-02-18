@@ -68,11 +68,11 @@ int main( int argc, char **argv )
     //
     //XXX: use malloc instead of iteration
     std::vector<particle_t*> cells[NUM_CELLS][NUM_CELLS]; 
-    // for(int i = 0; i < NUM_CELLS; i++){
-    //     for(int j=0; j < NUM_CELLS; j++){
-    //         cells[i][j] = std::vector<particle_t* >();
-    //     }
-    // }
+    for(int i = 0; i < NUM_CELLS; i++){
+        for(int j=0; j < NUM_CELLS; j++){
+            cells[i][j] = std::vector<particle_t* >();
+        }
+    }
 
     for(int i = 0; i < n; i++){
         //TODO: partition particles into cells
@@ -91,73 +91,37 @@ int main( int argc, char **argv )
     {
         navg = 0;
         davg = 0.0;
-	    dmin = 1.0;
+	      dmin = 1.0;
         //
         //  compute forces
         //
 
-        
+        // find nearby cells
         for(int i = 0; i < NUM_CELLS; i++){
             for(int j = 0; j < NUM_CELLS; j++){
-                //unrolling
-                //TODO: apply forces for subgrids
-                      apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
-                if(i==0 && j==0){
-                      apply_forces_to_cell(cells[i][j],cells[1][0], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[0][1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[1][1], &navg, &dmin, &davg);
-                } else if(i == NUM_CELLS -1 && j == NUM_CELLS - 1){
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg);
-                
-                } else if(i == NUM_CELLS - 1 && j == 0){
-                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg);
 
-                } else if(i == 0 && j == NUM_CELLS -1){
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg);
-                }else if(i == NUM_CELLS -1){
-                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
-                      
-                }else if(j == NUM_CELLS -1){
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
-                
-                }else if(i == 0){
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg);
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
-                      
-                }else if(j == 0){
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg);
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
-                }else{
-                      apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg);
-                      apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
-                      apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
-                }
 
+                std::vector<std::vector<particle_t* > > neighbor_cells;
+                //collect neighbors
+                for (int ii = i - 1; ii <= i + 1; ii++) 
+                    for (int jj = j - 1; jj <= j + 1; jj++) {
+                        //check if it is a possible cell
+                        if (i >= 0 && i < NUM_CELLS && j >= 0 && j < NUM_CELLS)
+                            neighbor_cells.push_back(cells[i][j]);
+                    }
+
+
+                //compute forces of close cells to the current cell
+                for (int p_index = 0; p_index < cells[i][j].size(); p_index++){
+                    cells[i][j][p_index]->ax = 0;
+                    cells[i][j][p_index]->ay = 0;
+
+                    for (int n_index = 0; n_index < neighbor_cells.size(); n_index++ ){
+                        for (int np_index = 0; np_index < neighbor_cells[n_index].size(); np_index++){
+                          apply_force(*cells[i][j][p_index], *neighbor_cells[n_index][np_index],&dmin, &davg, &navg);
+                        }
+                    }
+                }   
             }
         }
 
