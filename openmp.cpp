@@ -4,6 +4,30 @@
 #include <math.h>
 #include "common.h"
 #include "omp.h"
+#include <vector>
+#include <iostream>
+
+#define density 0.0005
+#define CELL_SIZE 0.02
+
+
+// Function applies forces of particles of one cell to particles in another cell
+void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
+    for(int i = 0; i < src.size(); i++) {
+	//int xOrg = src[i]->x;
+	//int yOrg = src[i]->y;
+      	for(int j = 0; j < cell.size(); j++)
+		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
+	//assert(src[i]->x != xOrg);    
+	//assert(src[i]->y != yOrg);    
+    }
+}
+
+void initCellParticles(std::vector<particle_t*> &src) {
+    for(int i = 0; i < src.size(); i++) 
+        src[i]->ax = src[i]->ay = 0;
+}
+
 
 //
 //  benchmarking program
@@ -34,39 +58,126 @@ int main( int argc, char **argv )
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
     set_size( n );
     init_particles( n, particles );
+    
 
+
+
+    double size = sqrt(density * n);
+    int numCells = ceil(size/CELL_SIZE);
+    //assume that grid is numCells x numCells
+    //
+    //XXX: use malloc instead of iteration
+    std::vector<particle_t*> cells[numCells][numCells]; 
     //
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
 
-    #pragma omp parallel private(dmin) 
-    {
-    numthreads = omp_get_num_threads();
     for( int step = 0; step < 1000; step++ )
     {
         navg = 0;
         davg = 0.0;
-	dmin = 1.0;
+	    dmin = 1.0;
         //
         //  compute all forces
         //
-        #pragma omp for reduction (+:navg) reduction(+:davg)
-        for( int i = 0; i < n; i++ )
-        {
-            particles[i].ax = particles[i].ay = 0;
-            for (int j = 0; j < n; j++ )
-                apply_force( particles[i], particles[j],&dmin,&davg,&navg);
-        }
+
         
+        // re-constructing bins
+        for(int i = 0; i < n; i++){
+            //TODO: partition particles into cells
+            int cell_i = floor(particles[i].x / CELL_SIZE);
+            int cell_j = floor(particles[i].y / CELL_SIZE);
+
+            cells[cell_i][cell_j].push_back(&particles[i]); 
+        } //end for-loop for constructing bin
+
+        #pragma omp parallel firstprivate(numCells, dmin) shared(cells)
+        {
+            numthreads = omp_get_num_threads();
+            std::cout<< "Number of threads: " << numthreads << std::endl;
+            #pragma omp for collapse(2) reduction(+:navg) reduction(+:davg) schedule(dynamic)
+            for(int i = 0; i < numCells; i++){
+                for(int j = 0; j < numCells; j++){
+		            initCellParticles(cells[i][j]); // initialize particles in current cell
+                    //unrolling
+                    //TODO: apply forces for subgrids
+                          apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
+                    if(i==0 && j==0){
+                          apply_forces_to_cell(cells[i][j],cells[1][0], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[0][1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[1][1], &navg, &dmin, &davg);
+                    } else if(i == numCells -1 && j == numCells - 1){
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg);
+                    
+                    } else if(i == numCells - 1 && j == 0){
+                          apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg);
+
+                    } else if(i == 0 && j == numCells -1){
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg);
+                    }else if(i == numCells -1){
+                          apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                          
+                    }else if(j == numCells -1){
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg);
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                    
+                    }else if(i == 0){
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg);
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                          
+                    }else if(j == 0){
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg);
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                    }else{
+                          apply_forces_to_cell(cells[i][j],cells[i][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j], &navg, &dmin, &davg);
+                          apply_forces_to_cell(cells[i][j],cells[i-1][j-1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j+1], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j], &navg, &dmin, &davg); 
+                          apply_forces_to_cell(cells[i][j],cells[i+1][j-1], &navg, &dmin, &davg); 
+                    }
+
+                } // end of j loop
+            } // end of i loop
+        
+            // clearing the bins
+            #pragma omp for
+            for(int i = 0; i < numCells; i++){
+                for(int j=0; j < numCells; j++){
+                    cells[i][j].clear();
+                }
+            }
+        }//pragma omp parallel
 		
         //
         //  move particles
         //
-        #pragma omp for
+        #pragma omp parallel for
         for( int i = 0; i < n; i++ ) 
             move( particles[i] );
-  
+
         if( find_option( argc, argv, "-no" ) == -1 ) 
         {
           //
@@ -89,7 +200,7 @@ int main( int argc, char **argv )
               save( fsave, n, particles );
         }
     }
-}
+
     simulation_time = read_timer( ) - simulation_time;
     
     printf( "n = %d,threads = %d, simulation time = %g seconds", n,numthreads, simulation_time);
