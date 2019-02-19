@@ -13,12 +13,12 @@
 // Function applies forces of particles of one cell to particles in another cell
 void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
     for(int i = 0; i < src.size(); i++) {
-	int xOrg = src[i]->x;
-	int yOrg = src[i]->y;
+	//int xOrg = src[i]->x;
+	//int yOrg = src[i]->y;
       	for(int j = 0; j < cell.size(); j++)
 		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
-	assert(src[i]->x != xOrg);    
-	assert(src[i]->y != yOrg);    
+	//assert(src[i]->x != xOrg);    
+	//assert(src[i]->y != yOrg);    
     }
 }
 
