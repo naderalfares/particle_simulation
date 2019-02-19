@@ -11,14 +11,22 @@
 
 
 // Function applies forces of particles of one cell to particles in another cell
-void apply_forces_to_cell(std::vector<particle_t*> src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
-    for(int i = 0; i < src.size(); i++)
-        for(int j = 0; j < cell.size(); j++){
-            src[i]->ax = src[i]->ay = 0;
+void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
+    for(int i = 0; i < src.size(); i++) {
+	int xOrg = src[i]->x;
+	int yOrg = src[i]->y;
+      	for(int j = 0; j < cell.size(); j++)
 		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
-        }
-
+	assert(src[i]->x != xOrg);    
+	assert(src[i]->y != yOrg);    
+    }
 }
+
+void initCellParticles(std::vector<particle_t*> &src) {
+    for(int i = 0; i < src.size(); i++) 
+        src[i]->ax = src[i]->ay = 0;
+}
+
 //
 //  benchmarking program
 //
@@ -88,6 +96,7 @@ int main( int argc, char **argv )
         
         for(int i = 0; i < numCells; i++){
             for(int j = 0; j < numCells; j++){
+		initCellParticles(cells[i][j]); // initialize particles in current cell
                 //unrolling
                 //TODO: apply forces for subgrids
                       apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
@@ -175,6 +184,15 @@ int main( int argc, char **argv )
 
             cells[cell_i][cell_j].push_back(&particles[i]); 
         }
+
+	// assert for no of particles
+/*	int sum  = 0;
+        for(int i = 0; i < numCells; i++){
+            for(int j=0; j < numCells; j++){
+                sum += cells[i][j].size();
+            }
+        }
+	assert(sum==n);*/
 
         if( find_option( argc, argv, "-no" ) == -1 )
         {
