@@ -69,7 +69,6 @@ int main( int argc, char **argv )
         int cell_i = floor(particles[i].x / CELL_SIZE);
         int cell_j = floor(particles[i].y / CELL_SIZE);
         cells[cell_i][cell_j].push_back(&particles[i]); 
-
     }
     
     //
@@ -166,7 +165,7 @@ int main( int argc, char **argv )
                 cells[i][j].clear();
             }
         }
-
+	
 
         // re-constructing bins
         for(int i = 0; i < n; i++){
@@ -194,7 +193,8 @@ int main( int argc, char **argv )
           if( fsave && (step%SAVEFREQ) == 0 )
               save( fsave, n, particles );
         }
-    }
+    } // end of NSTEPS iteration
+
     simulation_time = read_timer( ) - simulation_time;
     
     printf( "n = %d, simulation time = %g seconds", n, simulation_time);
