@@ -6,13 +6,12 @@
 #include "omp.h"
 #include <vector>
 #include <iostream>
-
 #define density 0.0005
 #define CELL_SIZE 0.02
 
 
 // Function applies forces of particles of one cell to particles in another cell
-void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> & cell, int* navg, double* dmin, double* davg){
+void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> &cell, int* navg, double* dmin, double* davg){
     for(int i = 0; i < src.size(); i++) {
 	//int xOrg = src[i]->x;
 	//int yOrg = src[i]->y;
@@ -48,7 +47,7 @@ int main( int argc, char **argv )
         return 0;
     }
 
-    int n = read_int( argc, argv, "-n", 1000 );
+    const int n = read_int( argc, argv, "-n", 1000 );
     char *savename = read_string( argc, argv, "-o", NULL );
     char *sumname = read_string( argc, argv, "-s", NULL );
 
@@ -58,12 +57,9 @@ int main( int argc, char **argv )
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
     set_size( n );
     init_particles( n, particles );
-    
 
-
-
-    double size = sqrt(density * n);
-    int numCells = ceil(size/CELL_SIZE);
+    const double size = sqrt(density * n);
+    const int numCells = ceil(size/CELL_SIZE);
     //assume that grid is numCells x numCells
     //
     //XXX: use malloc instead of iteration
@@ -72,10 +68,18 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-    
+    for(int i = 0; i < n; i++){
+       int cell_i = floor(particles[i].x / CELL_SIZE);
+       int cell_j = floor(particles[i].y / CELL_SIZE);
+       cells[cell_i][cell_j].push_back(&particles[i]); 
+    } //end for-loop for constructing bin
 
+    omp_lock_t writelock[numCells][numCells];
+    for(int i=0; i < numCells; i++)
+       for(int j=0; j < numCells; j++)
+	    omp_init_lock(&writelock[i][j]);
 
-    #pragma omp parallel default(none) firstprivate(fsave,n,numCells, dmin, argc, argv) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles)
+    #pragma omp parallel default(none) firstprivate(fsave,numCells, dmin, argc, argv,n) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles, writelock)
     {
 
     int i,j;
@@ -92,17 +96,28 @@ int main( int argc, char **argv )
 
         
         // re-constructing bins
-        #pragma omp single
+        //#pragma omp single
+        /*#pragma omp for
         for(i = 0; i < n; i++){
             //TODO: partition particles into cells
             int cell_i = floor(particles[i].x / CELL_SIZE);
             int cell_j = floor(particles[i].y / CELL_SIZE);
             cells[cell_i][cell_j].push_back(&particles[i]); 
         } //end for-loop for constructing bin
-
+*/
+        /*#pragma omp for collapse(2) schedule(static)
+	for(i=0; i < numCells; i++)
+	   for(j=0; j < numCells;j++)
+		for(int k=0; k < n; k++) {
+		    int cell_i = floor(particles[k].x / CELL_SIZE);
+	            int cell_j = floor(particles[k].y / CELL_SIZE);
+		    if(cell_i == i && cell_j == j)
+        	    cells[cell_i][cell_j].push_back(&particles[k]); 
+		}
+	*/
             numthreads = omp_get_num_threads();
             //std::cout<< "Number of threads: " << numthreads << std::endl;
-            #pragma omp for collapse(2) reduction(+:navg) reduction(+:davg) schedule(dynamic)
+            #pragma omp for reduction(+:navg) reduction(+:davg) schedule(guided) nowait
             for(i = 0; i < numCells; i++){
                 for(j = 0; j < numCells; j++){
 		            initCellParticles(cells[i][j]); // initialize particles in current cell
@@ -169,19 +184,41 @@ int main( int argc, char **argv )
             } // end of i loop
         
 		
-            // clearing the bins
-            #pragma omp for
-            for(i = 0; i < numCells; i++){
-                for(j=0; j < numCells; j++){
-                    cells[i][j].clear();
-                }
+        // clearing the bins
+        /*#pragma omp for
+        for(i = 0; i < numCells; i++){
+            for(j=0; j < numCells; j++){
+                cells[i][j].clear();
             }
+        }*/
         //
         //  move particles
         //
-        #pragma omp  for
+        #pragma omp for nowait
         for(i = 0; i < n; i++ ) 
             move( particles[i] );
+	
+	/*#pragma omp for
+	for(i=0; i < numCells; i++)
+	   for(j=0; j< numCells; j++)
+		   for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
+			move(it);
+	   }*/
+	#pragma omp for nowait
+	for(i=0; i < numCells; i++)
+	   for(j=0; j< numCells; j++)
+		   std::vector<particle_t*> temp;
+		   for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
+      		   int cell_i = floor((*it)->x / CELL_SIZE);
+                   int cell_j = floor((*it)->y / CELL_SIZE);
+		   if( cell_i != i && cell_j != j ) {
+//		           #pragma omp critical
+	    	           omp_set_lock(&writelock[cell_i][cell_j]);
+        	    	   cells[cell_i][cell_j].push_back(*it); 
+  		           omp_unset_lock(&writelock[cell_i][cell_j]);
+			   it = cells[i][j].erase(it);
+		   }
+        }          
 
         if( find_option( argc, argv, "-no" ) == -1 ) 
         {
@@ -206,7 +243,7 @@ int main( int argc, char **argv )
         }
      }
     }//pragma omp parallel
-
+    
     simulation_time = read_timer( ) - simulation_time;
     
     printf( "n = %d,threads = %d, simulation time = %g seconds", n,numthreads, simulation_time);
