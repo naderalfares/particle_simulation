@@ -75,7 +75,7 @@ int main( int argc, char **argv )
     
 
 
-    #pragma omp parallel default(none) firstprivate(fsave,n,numCells, dmin, numthreads, argc, argv) shared(absavg, cells,nabsavg, absmin, navg,davg, particles)
+    #pragma omp parallel default(none) firstprivate(fsave,n,numCells, dmin, argc, argv) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles)
     {
 
     int i,j;
