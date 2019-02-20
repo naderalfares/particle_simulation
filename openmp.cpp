@@ -72,6 +72,14 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
+    
+
+
+    #pragma omp parallel default(none) firstprivate(fsave,n,numCells, dmin, numthreads, argc, argv) shared(absavg, cells,nabsavg, absmin, navg,davg, particles)
+    {
+
+    int i,j;
+
 
     for( int step = 0; step < 1000; step++ )
     {
@@ -84,21 +92,19 @@ int main( int argc, char **argv )
 
         
         // re-constructing bins
-        for(int i = 0; i < n; i++){
+        #pragma omp single
+        for(i = 0; i < n; i++){
             //TODO: partition particles into cells
             int cell_i = floor(particles[i].x / CELL_SIZE);
             int cell_j = floor(particles[i].y / CELL_SIZE);
-
             cells[cell_i][cell_j].push_back(&particles[i]); 
         } //end for-loop for constructing bin
 
-        #pragma omp parallel firstprivate(numCells, dmin) shared(cells)
-        {
             numthreads = omp_get_num_threads();
-            std::cout<< "Number of threads: " << numthreads << std::endl;
+            //std::cout<< "Number of threads: " << numthreads << std::endl;
             #pragma omp for collapse(2) reduction(+:navg) reduction(+:davg) schedule(dynamic)
-            for(int i = 0; i < numCells; i++){
-                for(int j = 0; j < numCells; j++){
+            for(i = 0; i < numCells; i++){
+                for(j = 0; j < numCells; j++){
 		            initCellParticles(cells[i][j]); // initialize particles in current cell
                     //unrolling
                     //TODO: apply forces for subgrids
@@ -162,20 +168,19 @@ int main( int argc, char **argv )
                 } // end of j loop
             } // end of i loop
         
+		
             // clearing the bins
             #pragma omp for
-            for(int i = 0; i < numCells; i++){
-                for(int j=0; j < numCells; j++){
+            for(i = 0; i < numCells; i++){
+                for(j=0; j < numCells; j++){
                     cells[i][j].clear();
                 }
             }
-        }//pragma omp parallel
-		
         //
         //  move particles
         //
-        #pragma omp parallel for
-        for( int i = 0; i < n; i++ ) 
+        #pragma omp  for
+        for(i = 0; i < n; i++ ) 
             move( particles[i] );
 
         if( find_option( argc, argv, "-no" ) == -1 ) 
@@ -190,7 +195,7 @@ int main( int argc, char **argv )
           }
 
           #pragma omp critical
-	  if (dmin < absmin) absmin = dmin; 
+	      if (dmin < absmin) absmin = dmin; 
 		
           //
           //  save if necessary
@@ -199,7 +204,8 @@ int main( int argc, char **argv )
           if( fsave && (step%SAVEFREQ) == 0 )
               save( fsave, n, particles );
         }
-    }
+     }
+    }//pragma omp parallel
 
     simulation_time = read_timer( ) - simulation_time;
     
