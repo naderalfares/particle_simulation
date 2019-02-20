@@ -74,12 +74,8 @@ int main( int argc, char **argv )
        cells[cell_i][cell_j].push_back(&particles[i]); 
     } //end for-loop for constructing bin
 
-    omp_lock_t writelock[numCells][numCells];
-    for(int i=0; i < numCells; i++)
-       for(int j=0; j < numCells; j++)
-	    omp_init_lock(&writelock[i][j]);
 
-    #pragma omp parallel default(none) firstprivate(fsave,numCells, dmin, argc, argv,n) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles, writelock)
+    #pragma omp parallel default(none) firstprivate(fsave,numCells, dmin, argc, argv,n) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles)
     {
 
     int i,j;
@@ -94,30 +90,9 @@ int main( int argc, char **argv )
         //  compute all forces
         //
 
-        
-        // re-constructing bins
-        //#pragma omp single
-        /*#pragma omp for
-        for(i = 0; i < n; i++){
-            //TODO: partition particles into cells
-            int cell_i = floor(particles[i].x / CELL_SIZE);
-            int cell_j = floor(particles[i].y / CELL_SIZE);
-            cells[cell_i][cell_j].push_back(&particles[i]); 
-        } //end for-loop for constructing bin
-*/
-        /*#pragma omp for collapse(2) schedule(static)
-	for(i=0; i < numCells; i++)
-	   for(j=0; j < numCells;j++)
-		for(int k=0; k < n; k++) {
-		    int cell_i = floor(particles[k].x / CELL_SIZE);
-	            int cell_j = floor(particles[k].y / CELL_SIZE);
-		    if(cell_i == i && cell_j == j)
-        	    cells[cell_i][cell_j].push_back(&particles[k]); 
-		}
-	*/
             numthreads = omp_get_num_threads();
             //std::cout<< "Number of threads: " << numthreads << std::endl;
-            #pragma omp for reduction(+:navg) reduction(+:davg) schedule(guided) nowait
+            #pragma omp for reduction(+:navg) reduction(+:davg) schedule(guided)
             for(i = 0; i < numCells; i++){
                 for(j = 0; j < numCells; j++){
 		            initCellParticles(cells[i][j]); // initialize particles in current cell
@@ -184,42 +159,28 @@ int main( int argc, char **argv )
             } // end of i loop
         
 		
-        // clearing the bins
-        /*#pragma omp for
-        for(i = 0; i < numCells; i++){
-            for(j=0; j < numCells; j++){
-                cells[i][j].clear();
-            }
-        }*/
         //
         //  move particles
         //
-        #pragma omp for nowait
+        #pragma omp for
         for(i = 0; i < n; i++ ) 
             move( particles[i] );
 	
-	/*#pragma omp for
-	for(i=0; i < numCells; i++)
-	   for(j=0; j< numCells; j++)
-		   for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
-			move(it);
-	   }*/
-	#pragma omp for nowait
-	for(i=0; i < numCells; i++)
-	   for(j=0; j< numCells; j++)
-		   std::vector<particle_t*> temp;
-		   for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
-      		   int cell_i = floor((*it)->x / CELL_SIZE);
-                   int cell_j = floor((*it)->y / CELL_SIZE);
-		   if( cell_i != i && cell_j != j ) {
-//		           #pragma omp critical
-	    	           omp_set_lock(&writelock[cell_i][cell_j]);
-        	    	   cells[cell_i][cell_j].push_back(*it); 
-  		           omp_unset_lock(&writelock[cell_i][cell_j]);
-			   it = cells[i][j].erase(it);
-		   }
-        }          
-
+	    #pragma omp for
+	    for(i=0; i < numCells; i++)
+	        for(j=0; j< numCells; j++)
+		        std::vector<particle_t*> temp;
+		    for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
+      		    int cell_i = floor((*it)->x / CELL_SIZE);
+                int cell_j = floor((*it)->y / CELL_SIZE);
+		        if( cell_i != i && cell_j != j ) {
+		            #pragma omp critical
+                    {
+        	    	    cells[cell_i][cell_j].push_back(*it); 
+			            it = cells[i][j].erase(it);
+		            }
+                }          
+            }
         if( find_option( argc, argv, "-no" ) == -1 ) 
         {
           //
