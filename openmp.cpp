@@ -80,7 +80,6 @@ int main( int argc, char **argv )
 
     int i,j;
 
-
     for( int step = 0; step < 1000; step++ )
     {
         navg = 0;
@@ -165,12 +164,20 @@ int main( int argc, char **argv )
         #pragma omp for
         for(i = 0; i < n; i++ ) 
             move( particles[i] );
-	
-	    #pragma omp for
-	    for(i=0; i < numCells; i++)
-	        for(j=0; j< numCells; j++)
-		        std::vector<particle_t*> temp;
-		    for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
+       
+        #pragma omp master
+        for(int p_index = 0; p_index < cells[i][j].size(); p_index++){
+      		    int cell_i = floor(cells[i][j][p_index]->x / CELL_SIZE);
+                int cell_j = floor(cells[i][j][p_index]->y / CELL_SIZE);
+		        //#pragma omp critical 
+                if( cell_i != i && cell_j != j ) {
+                    cells[cell_i][cell_j].push_back(cells[i][j][p_index]);
+                    cells[i][j].erase(cells[i][j].begin() + p_index);
+                }
+        }
+        /*
+        std::vector<particle_t* >::iterator it;
+        for(it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
       		    int cell_i = floor((*it)->x / CELL_SIZE);
                 int cell_j = floor((*it)->y / CELL_SIZE);
 		        if( cell_i != i && cell_j != j ) {
@@ -180,7 +187,7 @@ int main( int argc, char **argv )
 			            it = cells[i][j].erase(it);
 		            }
                 }          
-            }
+        }*/
         if( find_option( argc, argv, "-no" ) == -1 ) 
         {
           //
