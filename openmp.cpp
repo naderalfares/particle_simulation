@@ -13,12 +13,8 @@
 // Function applies forces of particles of one cell to particles in another cell
 void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> &cell, int* navg, double* dmin, double* davg){
     for(int i = 0; i < src.size(); i++) {
-	//int xOrg = src[i]->x;
-	//int yOrg = src[i]->y;
       	for(int j = 0; j < cell.size(); j++)
 		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
-	//assert(src[i]->x != xOrg);    
-	//assert(src[i]->y != yOrg);    
     }
 }
 
@@ -95,9 +91,7 @@ int main( int argc, char **argv )
             for(i = 0; i < numCells; i++){
                 for(j = 0; j < numCells; j++){
 		            initCellParticles(cells[i][j]); // initialize particles in current cell
-                    //unrolling
-                    //TODO: apply forces for subgrids
-                          apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
+                    apply_forces_to_cell(cells[i][j],cells[i][j], &navg, &dmin, &davg); 
                     if(i==0 && j==0){
                           apply_forces_to_cell(cells[i][j],cells[1][0], &navg, &dmin, &davg); 
                           apply_forces_to_cell(cells[i][j],cells[0][1], &navg, &dmin, &davg); 
@@ -165,29 +159,21 @@ int main( int argc, char **argv )
         for(i = 0; i < n; i++ ) 
             move( particles[i] );
        
-        #pragma omp master
-        for(int p_index = 0; p_index < cells[i][j].size(); p_index++){
-      		    int cell_i = floor(cells[i][j][p_index]->x / CELL_SIZE);
-                int cell_j = floor(cells[i][j][p_index]->y / CELL_SIZE);
-		        //#pragma omp critical 
-                if( cell_i != i && cell_j != j ) {
-                    cells[cell_i][cell_j].push_back(cells[i][j][p_index]);
-                    cells[i][j].erase(cells[i][j].begin() + p_index);
+        #pragma omp for nowait
+        for(i = 0; i < numCells; i++)
+            for( j = 0; j < numCells; j++)
+                std::vector<particle_t*> temp;
+                for(int p_index = 0; p_index < cells[i][j].size(); p_index++){
+      		        int cell_i = floor(cells[i][j][p_index]->x / CELL_SIZE);
+                    int cell_j = floor(cells[i][j][p_index]->y / CELL_SIZE);
+		            #pragma omp critical 
+                    if( cell_i != i && cell_j != j ) {
+                        cells[cell_i][cell_j].push_back(cells[i][j][p_index]);
+                        cells[i][j].erase(cells[i][j].begin() + p_index);
+                    }
                 }
-        }
-        /*
-        std::vector<particle_t* >::iterator it;
-        for(it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
-      		    int cell_i = floor((*it)->x / CELL_SIZE);
-                int cell_j = floor((*it)->y / CELL_SIZE);
-		        if( cell_i != i && cell_j != j ) {
-		            #pragma omp critical
-                    {
-        	    	    cells[cell_i][cell_j].push_back(*it); 
-			            it = cells[i][j].erase(it);
-		            }
-                }          
-        }*/
+        
+
         if( find_option( argc, argv, "-no" ) == -1 ) 
         {
           //
