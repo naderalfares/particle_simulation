@@ -70,7 +70,12 @@ int main( int argc, char **argv )
        cells[cell_i][cell_j].push_back(&particles[i]); 
     } //end for-loop for constructing bin
 
-
+    /*
+    omp_lock_t writelock[numCells][numCells];
+    for(int i=0; i < numCells; i++)
+       for(int j=0; j < numCells; j++)
+      omp_init_lock(&writelock[i][j]);
+    */
     #pragma omp parallel default(none) firstprivate(fsave,numCells, dmin, argc, argv,n) shared(numthreads, absavg, cells,nabsavg, absmin, navg,davg, particles)
     {
 
@@ -172,6 +177,26 @@ int main( int argc, char **argv )
                         cells[i][j].erase(cells[i][j].begin() + p_index);
                     }
                 }
+
+          // using omp_set_lock and omp_unset_lock
+          /* 
+          #pragma omp for nowait
+          for(i=0; i < numCells; i++)
+          for(j=0; j< numCells; j++)
+          std::vector<particle_t*> temp;
+          for(std::vector<particle_t*>::iterator it = cells[i][j].begin(); it != cells[i][j].end(); ++it) {
+             int cell_i = floor((*it)->x / CELL_SIZE);
+                   int cell_j = floor((*it)->y / CELL_SIZE);
+          if( cell_i != i && cell_j != j ) {
+          //               #pragma omp critical
+                   omp_set_lock(&writelock[cell_i][cell_j]);
+                   cells[cell_i][cell_j].push_back(*it); 
+                 omp_unset_lock(&writelock[cell_i][cell_j]);
+         it = cells[i][j].erase(it);
+        }
+        }          
+
+          */
         
 
         if( find_option( argc, argv, "-no" ) == -1 ) 
