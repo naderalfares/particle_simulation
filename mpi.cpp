@@ -4,6 +4,49 @@
 #include <assert.h>
 #include "common.h"
 
+
+
+//XXX:
+struct proc_info {
+    int xLow, xHigh;
+    int yLow, yHigh;
+};
+
+
+
+void packing(particle_t** particles, int n, struct proc_info * procs_info, int n_proc,
+                int** partition_offset, int** partition_sizes){
+    
+    particle_t* new_particles = (particle_t *) malloc(len * sizeof(particle_t));
+    int index = 0, count = 0;
+    for(int i = 0; i < n_proc; i ++){
+        *partition_offset[i] = index;
+        count = 0;
+        int xHi = proc_info[i].xHigh;
+        int xLo = proc_info[i].xLow;
+        int yHi = proc_info[i].yHigh;
+        int yLo = proc_info[i].yLow;
+        for(int j = 0; j < n; j++){
+            int xCord = particles[j].x;
+            int yCord = particles[j].y;
+            // compare particle coordiantes to processor boundaries
+            if(xCord < xHi and xCord > xLo and ycord < yHi and yCord > yLo ) {
+                new_particles[index++] = particles[j];
+                count++;
+            }
+            
+        }
+       *partition_sizes[i] = count;
+    }
+
+   free(*particles);
+   particles = &new_particles;
+   
+};
+
+
+
+
 //
 //  benchmarking program
 //
