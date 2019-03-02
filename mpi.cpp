@@ -273,7 +273,7 @@ int main( int argc, char **argv )
     //scatter particles 
     initialParticleScatter(&particles, n, &partition_sizes, &partition_offsets, n_proc, &procs_info[0], 0 , PARTICLE);
     nlocal = n;
-     
+    local  = particles;
     
     //  initilize local bins
     //
@@ -283,7 +283,35 @@ int main( int argc, char **argv )
     int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow - myInfo.gyLow) ) / CELL_SIZE;
     //  used truncating vectors for passing by refrence simplicity
     std::vector<std::vector<bin>> bins (i_dim, std::vector<bin> (j_dim, bin()));
+    
 
+    // this procs info
+    float myX_high, myX_low;
+    float myY_high, myY_low;
+    //TODO: put in module
+    if(procs_info[rank].gxHigh > 0){
+        myX_high = procs_info[rank].gxHigh;
+    } else {
+        myX_high = procs_info[rank].xHigh;
+    }
+    
+    if(procs_info[rank].gxLow > 0){
+        myX_low = procs_info[rank].gxLow;
+    } else {
+        myX_low = procs_info[rank].xLow;
+    }
+
+    if(procs_info[rank].gyHigh > 0){
+        myY_high = procs_info[rank].gyHigh;
+    } else {
+        myY_high = procs_info[rank].yHigh;
+    }
+
+    if(procs_info[rank].gyLow > 0){
+        myY_low = procs_info[rank].gyLow;
+    } else {
+        myY_low = procs_info[rank].yLow;
+    }
     //
     //  simulate a number of time steps
     //
@@ -303,6 +331,18 @@ int main( int argc, char **argv )
         if( find_option( argc, argv, "-no" ) == -1 )
           if( fsave && (step%SAVEFREQ) == 0 )
             save( fsave, n, particles );
+
+        //TODO: bin particles given my bin
+        for( int i = 0; i < nlocal; i ++){
+            float relative_x = local[i].x - myX_low;
+            float relative_y = local[i].y - myY_high;
+            assert(relative_x > 0 && relative_y > 0);
+            int bin_i = floor(relative_y/CELL_SIZE);
+            int bin_j = floor(relative_x/CELL_SIZE);
+            bins[bin_i][bin_j].particles.push_back(&local[i]);   
+        }
+        
+
         
         //
         //  compute all forces
