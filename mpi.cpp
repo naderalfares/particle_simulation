@@ -3,10 +3,13 @@
 #include <stdio.h>
 #include <assert.h>
 #include "common.h"
-
+#include<vector>
+#include<math.h>
 
 // TODO: keep the cell_size fixed at 0.1 so that the entire space is integrally divisible by cell size
 #define CELL_SIZE 0.01
+#define density 0.0005
+
 
 //XXX:
 struct proc_info {
@@ -15,6 +18,16 @@ struct proc_info {
     float gxHigh, gxLow; // CELL_SIZE if at edge else 0
     float gyHigh, gyLow; // same
 };
+
+
+enum bin_status {GHOST, INNER, OUTER};
+struct bin{
+    std::vector<particle_t*> particles;
+    bin_status status;     //status
+    float xLow, xHigh;
+    float yLow, yHigh; 
+};
+
 
 
 // particles: the particles in the boundary of the processor and not the ghost particles
@@ -70,7 +83,7 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
 
 // The first initialized particles and proc_info will be scattered to the respective processors
 void initialParticleScatter(particle_t **particles, int &numParticles, int **partitionSizes, int **partitionOffsets,
-                    int numProcs, struct proc_info * pinfo, int rank, MPI_Datatype PARTICLE) {
+                    int numProcs,struct proc_info* pinfo, int rank, MPI_Datatype PARTICLE) {
     // only rank 0 has valid particles others wil have null
     if(*partitionSizes == NULL)
 	*partitionSizes = (int *)malloc (sizeof(int) * numProcs);
@@ -88,19 +101,61 @@ void initialParticleScatter(particle_t **particles, int &numParticles, int **par
     numParticles = nlocal;
 }
 
+
+void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struct bin>> &bins, int dim_x, int dim_y){
+    // used vectros instead of arrays since cpp requires knowing n-1 dimensions when passing by refrence
+    float start_x, start_y;
+    bin_status status;
+    if(p_info.gxLow > 0){
+        start_x = p_info.gxLow;
+        status = GHOST;
+    } else {
+        start_x = p_info.xLow;
+        status = INNER;
+    }
+    
+    for(int j = 0; j < dim_x; j++){
+        // this is checking for the right edge
+        if(start_x > p_info.xHigh){
+            status = GHOST;
+        //need to re-assign for rows     
+        if(p_info.gyHigh > 0){
+            start_y = p_info.gyHigh;
+            status = GHOST;
+        }else{
+            start_y = p_info.yHigh;
+        }
+        for(int i = 0; i < dim_y; i++){
+            //check if the x limit is in the inner bins but y is not
+            // if x is already in the ghost, then no need to check for y
+            if(dim_y - i == 1 && p_info.gyLow > 0){
+                status = GHOST;
+            }
+            bins[i][j].status = status;
+            // incremeant in column
+            start_y += CELL_SIZE;
+        }
+        start_x += CELL_SIZE;
+        status = INNER;
+        }
+    }
+
+}
+
+
 /*
  * intialize proc_info on all the processors for the first time only
  * based on the following represented boundary condition
  *      yLow
- *	________
- *	|      |
+ *	    ________
+ *	    |      |
  * xLow	|      | xHigh
- *	|      |
- *	--------
- *	yHigh
+ *	    |      |
+ *	    --------
+ *	    yHigh
  * */
 
-void intializeProcInfo(struct proc_info **proc_info, int space) {
+void initializeProcInfo(struct proc_info **proc_info, int space) {
    int procPointer = 0;
    for(int i=0; i < space; i+=CELL_SIZE) {
       struct proc_info *info = &((*proc_info)[procPointer]);
@@ -175,7 +230,11 @@ int main( int argc, char **argv )
     MPI_Datatype PARTICLE;
     MPI_Type_contiguous( 6, MPI_DOUBLE, &PARTICLE );
     MPI_Type_commit( &PARTICLE );
-    
+   
+
+
+    //XXX: the value on these don't matter, they are going to change
+    //      when init_scatter function is called 
     //
     //  set up the data partitioning across processors
     //
@@ -195,26 +254,48 @@ int main( int argc, char **argv )
     particle_t *local = (particle_t*) malloc( nlocal * sizeof(particle_t) );
     
     //
+    //  allcoate array of proc info in every processor
+    //  
+    
+    const double size = sqrt(density * n);
+    const int numCells = ceil(size/CELL_SIZE);
+    proc_info*  procs_info = (proc_info*) malloc( n_proc * sizeof(proc_info));
+    initializeProcInfo(&procs_info, size);
+
+
+    //
     //  initialize and distribute the particles (that's fine to leave it unoptimized)
     //
     set_size( n );
     if( rank == 0 )
         init_particles( n, particles );
-    MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
+    //MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
+    //scatter particles 
+    initialParticleScatter(&particles, n, &partition_sizes, &partition_offsets, n_proc, &procs_info[0], 0 , PARTICLE);
+    nlocal = n;
+     
     
+    //  initilize local bins
+    //
+    
+    struct proc_info myInfo = procs_info[rank];
+    int    j_dim            = ( (myInfo.xHigh + myInfo.gxHigh) - (myInfo.xLow - myInfo.gxLow) ) / CELL_SIZE;
+    int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow - myInfo.gyLow) ) / CELL_SIZE;
+    //  used truncating vectors for passing by refrence simplicity
+    std::vector<std::vector<bin>> bins (i_dim, std::vector<bin> (j_dim, bin()));
+
     //
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-    for( int step = 0; step < NSTEPS; step++ )
+    
+    //XXX: delete before testing
+    int temp_nsteps = 5;
+    for( int step = 0; step < temp_nsteps; step++ )
     {
         navg = 0;
         dmin = 1.0;
         davg = 0.0;
-        // 
-        //  collect all global data locally (not good idea to do)
-        //
-        MPI_Allgatherv( local, nlocal, PARTICLE, particles, partition_sizes, partition_offsets, PARTICLE, MPI_COMM_WORLD );
         
         //
         //  save current step if necessary (slightly different semantics than in other codes)
