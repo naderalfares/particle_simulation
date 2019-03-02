@@ -20,13 +20,29 @@ struct proc_info {
 };
 
 
-enum bin_status {GHOST, INNER, OUTER};
+enum bin_status {GHOST, INNER};
 struct bin{
     std::vector<particle_t*> particles;
     bin_status status;     //status
     float xLow, xHigh;
     float yLow, yHigh; 
 };
+
+
+
+void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, int j_dim, int bin_i, int bin_j
+                        ,std::vector<bin> &neighbors){
+     for(int i = -1; i < 2; i++){
+            int nrow = bin_i - i;
+        for( int j = -1; j < 2; j++){
+            int ncol = bin_j - j;
+            if(nrow >= 0 && ncol >= 0 && nrow < i_dim && ncol < j_dim){
+                neighbors.push_back(bins[i][j]);
+            }
+        }
+    }    
+}
+        
 
 
 
@@ -342,18 +358,27 @@ int main( int argc, char **argv )
             bins[bin_i][bin_j].particles.push_back(&local[i]);   
         }
         
-
-        
         //
         //  compute all forces
         //
-        for( int i = 0; i < nlocal; i++ )
-        {
-            local[i].ax = local[i].ay = 0;
-            for (int j = 0; j < n; j++ )
-                apply_force( local[i], particles[j], &dmin, &davg, &navg );
+        std::vector<bin> neighbors;
+        
+        for(int j = 0; j < j_dim; j++){
+            for( int i = 0; i < i_dim; i++){
+                if(bins[i][j].status == INNER){
+                    findMeAndMyNeighbors(bins, i_dim, j_dim, i, j, neighbors);
+                    //TODO: Apply forces
+                }
+            }
         }
-     
+        // clear neighbor bins
+        for(int i = 0; i < i_dim; i ++)
+            for( int j = 0; j < j_dim; j++)
+                if(bins[i][j].status == GHOST)
+                    bins[i][j].particles.clear();
+       
+
+        
         if( find_option( argc, argv, "-no" ) == -1 )
         {
           
@@ -377,6 +402,7 @@ int main( int argc, char **argv )
         //
         //  move particles
         //
+        //TODO: aggragate all particles that have moved from inner bin 
         for( int i = 0; i < nlocal; i++ )
             move( local[i] );
     }
