@@ -5,13 +5,15 @@
 #include "common.h"
 
 
+// TODO: keep the cell_size fixed at 0.1 so that the entire space is integrally divisible by cell size
+#define CELL_SIZE 0.01
 
 //XXX:
 struct proc_info {
-    int xLow, xHigh;
-    int yLow, yHigh;
-    int gxHigh, gxLow; // CELL_SIZE if at edge else 0
-    int gyHigh, gyLow; // same
+    float xLow, xHigh;
+    float yLow, yHigh;
+    float gxHigh, gxLow; // CELL_SIZE if at edge else 0
+    float gyHigh, gyLow; // same
 };
 
 
@@ -36,7 +38,6 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
                 new_particles[index++] = *particles[j];
                 count++;
             }
-            
         }
        *partition_sizes[i] = count;
     }
@@ -46,10 +47,65 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
    
 };
 
-void communicateData(particle_t *particles, int *partitionSizes, int *partitionOffsets, int *) {
+void communicateData(particle_t **particles,  int **partitionSizes, int *partitionOffsets, int nprocs, MPI_Datatype PARTICLE) {
+     int numParticles = 0;
+     // calculate the total particles = sum of all the particles to be send including the ones replicated
+     for(int i=0; i < nprocs; i++)
+        numParticles += *partitionSizes[i];
 
+     // receive the new particles after all to all
+     particle_t *newParticles = (particle_t*)malloc(sizeof(particle_t) * numParticles);
+     int *newPartitionSizes = (int *)malloc(sizeof(int) * nprocs);
+
+     MPI_Alltoallv( *particles, *partitionSizes,
+		    partitionOffsets, PARTICLE, newParticles,
+		    newPartitionSizes, NULL, PARTICLE,
+		    MPI_COMM_WORLD
+	    	  );
+     free(*particles);
+     free(*partitionSizes);
+     particles = &newParticles;
+     partitionSizes = &newPartitionSizes;
 }
 
+// The first initialized particles and proc_info will be scattered to the respective processors
+void initialParticleScatter(particle_t **particles, int &numParticles, int **partitionSizes, int **partitionOffsets,
+                    int numProcs, struct proc_info * pinfo, int rank, MPI_Datatype PARTICLE) {
+    // only rank 0 has valid particles others wil have null
+    if(*partitionSizes == NULL)
+	*partitionSizes = (int *)malloc (sizeof(int) * numProcs);
+    if(*partitionOffsets == NULL)
+        *partitionOffsets = (int *) malloc(sizeof(int) * numProcs);
+
+    // create the partitions for each processor to be received 
+    if(rank==0)
+	packing(particles, numParticles, pinfo, numProcs,
+                partitionOffsets, partitionSizes);
+    particle_t *local = (particle_t *)malloc(sizeof(particle_t) * numParticles);
+    int nlocal = numParticles/numProcs;
+    MPI_Scatterv( particles, (const int *)partitionSizes, (const int *)partitionOffsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
+    *particles = local;
+    numParticles = nlocal;
+}
+
+// intialize proc_info on all the processors for the first time only
+void intializeProcInfo(struct proc_info **proc_info, int space) {
+   int procPointer = 0;
+   for(int i=0; i < space; i+=CELL_SIZE) {
+      struct proc_info *info = &((*proc_info)[procPointer]);
+      info->yLow = i * CELL_SIZE;
+      info->yHigh = (i+1) * CELL_SIZE;
+      if(info->yLow==0) info->gyLow=0;
+      if(info->yHigh==space) info->gyHigh=0;
+   }
+   for(int i=0; i < space; i+=CELL_SIZE) {
+      struct proc_info *info = &((*proc_info)[procPointer]);
+      info->xLow = i * CELL_SIZE;
+      info->xHigh = (i+1) * CELL_SIZE;
+      if(info->xLow==0) info->gxLow=0;
+      if(info->xHigh==space) info->gxHigh=0;
+   }
+}
 
 //
 //  benchmarking program
