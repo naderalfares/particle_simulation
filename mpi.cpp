@@ -88,22 +88,42 @@ void initialParticleScatter(particle_t **particles, int &numParticles, int **par
     numParticles = nlocal;
 }
 
-// intialize proc_info on all the processors for the first time only
+/*
+ * intialize proc_info on all the processors for the first time only
+ * based on the following represented boundary condition
+ *      yLow
+ *	________
+ *	|      |
+ * xLow	|      | xHigh
+ *	|      |
+ *	--------
+ *	yHigh
+ * */
+
 void intializeProcInfo(struct proc_info **proc_info, int space) {
    int procPointer = 0;
    for(int i=0; i < space; i+=CELL_SIZE) {
       struct proc_info *info = &((*proc_info)[procPointer]);
       info->yLow = i * CELL_SIZE;
       info->yHigh = (i+1) * CELL_SIZE;
-      if(info->yLow==0) info->gyLow=0;
-      if(info->yHigh==space) info->gyHigh=0;
-   }
-   for(int i=0; i < space; i+=CELL_SIZE) {
-      struct proc_info *info = &((*proc_info)[procPointer]);
       info->xLow = i * CELL_SIZE;
       info->xHigh = (i+1) * CELL_SIZE;
-      if(info->xLow==0) info->gxLow=0;
-      if(info->xHigh==space) info->gxHigh=0;
+      if(info->yLow == 0) 
+        info->gyLow = 0;
+      else
+        info->gyLow = -CELL_SIZE;
+      if(info->yHigh == space) 
+	info->gyHigh = 0;
+      else
+        info->gyHigh = CELL_SIZE;
+      if(info->xLow == 0) 
+        info->gxLow = 0;
+      else
+        info->gxLow = -CELL_SIZE;
+      if(info->xHigh==space) 
+	info->gxHigh=0;
+      else 
+        info->gxHigh = CELL_SIZE;
    }
 }
 
