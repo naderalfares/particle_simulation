@@ -130,40 +130,29 @@ void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struc
     // used vectros instead of arrays since cpp requires knowing n-1 dimensions when passing by refrence
     float start_x, start_y;
     bin_status status;
-    if(p_info.gxLow > 0){
-        start_x = p_info.gxLow;
-        status = GHOST;
-    } else {
-        start_x = p_info.xLow;
-        status = INNER;
-    }
+
+    // start from left bin ghost if existed
+    //  or start fron inner bin where gxLow = 0
+    start_x = p_info.xLow + p_info.gxLow;
+    assert(start_x > 0 && "Error in grid init");
     
+    // go through coloumns, which in the x axis of the space  
     for(int j = 0; j < dim_x; j++){
-        // this is checking for the right edge
-        if(start_x > p_info.xHigh){
-            status = GHOST;
-        //need to re-assign for rows     
-        if(p_info.gyHigh > 0){
-            start_y = p_info.gyHigh;
-            status = GHOST;
-        }else{
-            start_y = p_info.yHigh;
-        }
+        start_y = p_info.yLow + p_info.gyLow;
+        status  = INNER;    
         for(int i = 0; i < dim_y; i++){
-            //check if the x limit is in the inner bins but y is not
-            // if x is already in the ghost, then no need to check for y
-            if(dim_y - i == 1 && p_info.gyLow > 0){
+            if(start_x < p_info.xLow || start_x > p_info.xHigh ||
+               start_y < p_info.yLow || start_y > p_info.yHigh )
                 status = GHOST;
-            }
+            else
+                status = INNER; 
+            
             bins[i][j].status = status;
             // incremeant in column
             start_y += CELL_SIZE;
         }
         start_x += CELL_SIZE;
-        status = INNER;
         }
-    }
-
 }
 
 
@@ -205,6 +194,7 @@ void initializeProcInfo(struct proc_info **proc_info, int space) {
         info->gxHigh = CELL_SIZE;
    }
 }
+
 
 //
 //  benchmarking program
@@ -303,8 +293,8 @@ int main( int argc, char **argv )
     //
     
     struct proc_info myInfo = procs_info[rank];
-    int    j_dim            = ( (myInfo.xHigh + myInfo.gxHigh) - (myInfo.xLow - myInfo.gxLow) ) / CELL_SIZE;
-    int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow - myInfo.gyLow) ) / CELL_SIZE;
+    int    j_dim            = ( (myInfo.xHigh + myInfo.gxHigh) - (myInfo.xLow + myInfo.gxLow) ) / CELL_SIZE;
+    int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow + myInfo.gyLow) ) / CELL_SIZE;
     //  used truncating vectors for passing by refrence simplicity
     std::vector<std::vector<bin>> bins (i_dim, std::vector<bin> (j_dim, bin()));
     
@@ -312,30 +302,13 @@ int main( int argc, char **argv )
     // this procs info
     float myX_high, myX_low;
     float myY_high, myY_low;
-    //TODO: put in module
-    if(procs_info[rank].gxHigh > 0){
-        myX_high = procs_info[rank].gxHigh;
-    } else {
-        myX_high = procs_info[rank].xHigh;
-    }
-    
-    if(procs_info[rank].gxLow > 0){
-        myX_low = procs_info[rank].gxLow;
-    } else {
-        myX_low = procs_info[rank].xLow;
-    }
+    myX_low = procs_info[rank].xLow  + procs_info[rank].gxLow;
+    myX_high= procs_info[rank].xHigh + procs_info[rank].gxHigh;
+    myY_low = procs_info[rank].yLow  + procs_info[rank].gyLow;
+    myY_high= procs_info[rank].yHigh + procs_info[rank].gyHigh;
 
-    if(procs_info[rank].gyHigh > 0){
-        myY_high = procs_info[rank].gyHigh;
-    } else {
-        myY_high = procs_info[rank].yHigh;
-    }
 
-    if(procs_info[rank].gyLow > 0){
-        myY_low = procs_info[rank].gyLow;
-    } else {
-        myY_low = procs_info[rank].yLow;
-    }
+
     //
     //  simulate a number of time steps
     //
@@ -358,8 +331,12 @@ int main( int argc, char **argv )
 
         for( int i = 0; i < nlocal; i ++){
             float relative_x = local[i].x - myX_low;
-            float relative_y = local[i].y - myY_high;
-            assert(relative_x > 0 && relative_y > 0);
+            float relative_y = local[i].y - myY_low;
+
+            assert(relative_x > 0 && relative_y > 0 && "Error in binning particle");
+            assert(relative_x < myX_high && "Error: out of bound binning");
+            assert(relative_y < myY_high && "Error: out of bound binning");
+
             int bin_i = floor(relative_y/CELL_SIZE);
             int bin_j = floor(relative_x/CELL_SIZE);
             bins[bin_i][bin_j].particles.push_back(&local[i]);   
