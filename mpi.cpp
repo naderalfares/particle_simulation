@@ -156,6 +156,37 @@ void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struc
 }
 
 
+
+
+void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particles, int &count,
+                           particle_t** local, int &nlocal, 
+                           const int i_dim, const int j_dim){
+    float myXLow, myXHigh, myYLow, myYHigh;
+    myXLow = p_info.xLow + p_info.gxLow;
+    myXHigh= p_info.xHigh+ p_info.gxHigh;
+    myYLow = p_info.yLow + p_info.gyLow;
+    myYHigh= p_info.yHigh+ p_info.gyHigh;
+    
+    particle_t * new_local;
+    int new_nlocal = 0;
+    count = 0;
+    for(int i = 0; i < nlocal; i++){
+        //check if particls is not longer in the ghost or inner region
+        if(local[i]->x > myXLow && local[i]->x < myXHigh &&
+           local[i]->y >  myYLow && local[i]->y < myYHigh){
+           new_local[new_nlocal++] = *local[i];
+        }else{
+            not_my_particles[count++] = local[i];
+        }
+    }
+
+    free(*local);
+    local = &new_local;
+    nlocal = new_nlocal;
+
+}
+
+
 /*
  * intialize proc_info on all the processors for the first time only
  * based on the following represented boundary condition
@@ -389,8 +420,26 @@ int main( int argc, char **argv )
         //
         //TODO: aggragate all particles that have moved from inner bin
         //TODO: only move particles that are in the INNER bin 
-        for( int i = 0; i < nlocal; i++ )
-            move( local[i] );
+        
+        for(int i = 0; i < i_dim; i++){
+            for(int j = 0; j < j_dim; j++){
+                std::vector<particle_t*> myParticles = bins[i][j].particles;
+                for(int k = 0; k < myParticles.size(); k++){
+                    move(*(myParticles[k]));
+                }
+            }
+        }
+        
+        // removed particles that have moved from my inner boundries
+
+        particle_t* removed_particles;
+        int removed_particles_count;
+        find_not_my_particles(procs_info[rank],  &removed_particles, removed_particles_count,
+                                &local, nlocal, i_dim, j_dim);       
+
+        
+                    
+        
     }
     simulation_time = read_timer( ) - simulation_time;
   
