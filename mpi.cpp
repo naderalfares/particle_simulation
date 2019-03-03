@@ -42,7 +42,15 @@ void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, in
         }
     }    
 }
-        
+       
+
+
+void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*> &cell, int* navg, double* dmin, double* davg){
+    for(int i = 0; i < src.size(); i++) {
+      	for(int j = 0; j < cell.size(); j++)
+		    apply_force(*(src[i]), *(cell[j]),dmin,davg,navg);
+    }
+}
 
 
 
@@ -348,7 +356,6 @@ int main( int argc, char **argv )
           if( fsave && (step%SAVEFREQ) == 0 )
             save( fsave, n, particles );
 
-        //TODO: bin particles given my bin
         for( int i = 0; i < nlocal; i ++){
             float relative_x = local[i].x - myX_low;
             float relative_y = local[i].y - myY_high;
@@ -367,17 +374,18 @@ int main( int argc, char **argv )
             for( int i = 0; i < i_dim; i++){
                 if(bins[i][j].status == INNER){
                     findMeAndMyNeighbors(bins, i_dim, j_dim, i, j, neighbors);
-                    //TODO: Apply forces
+                    for( int k = 0; k < neighbors.size(); k++){
+                        apply_forces_to_cell(bins[i][j].particles, neighbors[k].particles, &navg, &dmin, &davg);
+                    }
                 }
             }
         }
+
         // clear neighbor bins
         for(int i = 0; i < i_dim; i ++)
             for( int j = 0; j < j_dim; j++)
                 if(bins[i][j].status == GHOST)
                     bins[i][j].particles.clear();
-       
-
         
         if( find_option( argc, argv, "-no" ) == -1 )
         {
@@ -402,7 +410,8 @@ int main( int argc, char **argv )
         //
         //  move particles
         //
-        //TODO: aggragate all particles that have moved from inner bin 
+        //TODO: aggragate all particles that have moved from inner bin
+        //TODO: only move particles that are in the INNER bin 
         for( int i = 0; i < nlocal; i++ )
             move( local[i] );
     }
