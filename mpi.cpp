@@ -29,7 +29,6 @@ struct bin{
 };
 
 
-
 void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, int j_dim, int bin_i, int bin_j
                         ,std::vector<bin> &neighbors){
      for(int i = -1; i < 2; i++){
@@ -57,8 +56,12 @@ void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*
 // particles: the particles in the boundary of the processor and not the ghost particles
 void packing(particle_t** particles, int n, struct proc_info * procs_info, int n_proc,
                 int** partition_offset, int** partition_sizes){
-    
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
+    
+    int test_n_particles;
+    int temp_i = 0;
+    while( particles[temp_i] != NULL)
+        temp_i ++;
     int index = 0, count = 0;
     for(int i = 0; i < n_proc; i ++){
         *partition_offset[i] = index;
@@ -68,8 +71,9 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
         int yHi = procs_info[i].yHigh + procs_info[i].gyHigh;
         int yLo = procs_info[i].yLow + procs_info[i].gyLow;
         for(int j = 0; j < n; j++){
-            int xCord = particles[j]->x;
-            int yCord = particles[j]->y;
+            
+            int xCord = (*particles)[j].x;
+            int yCord = (*particles[j]).y;
             // compare particle coordiantes to processor boundaries
             if(xCord < xHi and xCord > xLo and yCord < yHi and yCord > yLo ) {
                 new_particles[index++] = *particles[j];
@@ -109,6 +113,7 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
 void initialParticleScatter(particle_t **particles, int &numParticles, int **partitionSizes, int **partitionOffsets,
                     int numProcs,struct proc_info* pinfo, int rank, MPI_Datatype PARTICLE) {
     // only rank 0 has valid particles others wil have null
+    
     if(*partitionSizes == NULL)
 	*partitionSizes = (int *)malloc (sizeof(int) * numProcs);
     if(*partitionOffsets == NULL)
@@ -120,7 +125,7 @@ void initialParticleScatter(particle_t **particles, int &numParticles, int **par
                 partitionOffsets, partitionSizes);
     particle_t *local = (particle_t *)malloc(sizeof(particle_t) * numParticles);
     int nlocal = numParticles/numProcs;
-    MPI_Scatterv( particles, (const int *)partitionSizes, (const int *)partitionOffsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
+    MPI_Scatterv( *particles, (const int *) *partitionSizes, (const int *) *partitionOffsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
     *particles = local;
     numParticles = nlocal;
 }
@@ -263,20 +268,19 @@ int main( int argc, char **argv )
     MPI_Comm_size( MPI_COMM_WORLD, &n_proc );
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
     
+ 
     //
     //  allocate generic resources
     //
     FILE *fsave = savename && rank == 0 ? fopen( savename, "w" ) : NULL;
     FILE *fsum = sumname && rank == 0 ? fopen ( sumname, "a" ) : NULL;
-
+    
 
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
-    
     MPI_Datatype PARTICLE;
     MPI_Type_contiguous( 6, MPI_DOUBLE, &PARTICLE );
     MPI_Type_commit( &PARTICLE );
    
-
 
     //XXX: the value on these don't matter, they are going to change
     //      when init_scatter function is called 
@@ -291,7 +295,9 @@ int main( int argc, char **argv )
     int *partition_sizes = (int*) malloc( n_proc * sizeof(int) );
     for( int i = 0; i < n_proc; i++ )
         partition_sizes[i] = partition_offsets[i+1] - partition_offsets[i];
-    
+  
+     
+
     //
     //  allocate storage for local partition
     //
@@ -307,13 +313,14 @@ int main( int argc, char **argv )
     proc_info*  procs_info = (proc_info*) malloc( n_proc * sizeof(proc_info));
     initializeProcInfo(&procs_info, size);
 
-
     //
     //  initialize and distribute the particles (that's fine to leave it unoptimized)
     //
     set_size( n );
+    
     if( rank == 0 )
         init_particles( n, particles );
+    
     //MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
     //scatter particles 
     initialParticleScatter(&particles, n, &partition_sizes, &partition_offsets, n_proc, &procs_info[0], 0 , PARTICLE);
@@ -328,8 +335,7 @@ int main( int argc, char **argv )
     int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow + myInfo.gyLow) ) / CELL_SIZE;
     //  used truncating vectors for passing by refrence simplicity
     std::vector<std::vector<bin>> bins (i_dim, std::vector<bin> (j_dim, bin()));
-    
-
+        
     // this procs info
     float myX_high, myX_low;
     float myY_high, myY_low;
@@ -344,7 +350,6 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-    
     //XXX: delete before testing
     int temp_nsteps = 5;
     for( int step = 0; step < temp_nsteps; step++ )
