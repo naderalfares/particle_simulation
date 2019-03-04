@@ -29,6 +29,19 @@ struct bin{
 };
 
 
+void print_particles( particle_t** particles, int n ){
+    particle_t* p = *particles;
+    std::cout<<"#### particles####" << std::endl;
+    for(int i =0; i < n; i++){
+        std::cout<< "X : " << p[i].x << "Y : " << p[i].y <<
+                    "ax: "<< p[i].ax << "ay: " << p[i].ay<< std::endl;
+    }
+    std::cout<<"##################" << std::endl;
+
+}
+
+
+
 void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, int j_dim, int bin_i, int bin_j
                         ,std::vector<bin> &neighbors){
      for(int i = -1; i < 2; i++){
@@ -51,6 +64,11 @@ void apply_forces_to_cell(std::vector<particle_t*> &src, std::vector<particle_t*
     }
 }
 
+
+void initCellParticles(std::vector<particle_t*> &src) {
+    for(int i = 0; i < src.size(); i++) 
+        src[i]->ax = src[i]->ay = 0;
+}
 
 
 // particles: the particles in the boundary of the processor and not the ghost particles
@@ -400,6 +418,8 @@ int main( int argc, char **argv )
     nlocal = n;
     local  = particles;
     
+    
+
     //  initilize local bins
     //
     
@@ -433,7 +453,10 @@ int main( int argc, char **argv )
     int temp_nsteps = 5;
     //  >
     //  >
-    
+   
+    print_particles(&local, nlocal);
+
+     
     for( int step = 0; step < temp_nsteps; step++ )
     {
         navg = 0;
@@ -466,6 +489,7 @@ int main( int argc, char **argv )
         for(int j = 0; j < j_dim; j++){
             for( int i = 0; i < i_dim; i++){
                 if(bins[i][j].status == INNER){
+                    initCellParticles(bins[i][j].particles);
                     findMeAndMyNeighbors(bins, i_dim, j_dim, i, j, neighbors);
                     for( int k = 0; k < neighbors.size(); k++){
                         apply_forces_to_cell(bins[i][j].particles, neighbors[k].particles, &navg, &dmin, &davg);
@@ -473,7 +497,9 @@ int main( int argc, char **argv )
                 }
             }
         }
-
+        
+        
+        
         // clear neighbor bins
         for(int i = 0; i < i_dim; i ++)
             for( int j = 0; j < j_dim; j++)
@@ -515,6 +541,7 @@ int main( int argc, char **argv )
             }
         }
        
+        print_particles(&local, nlocal);
          
         // removed particles that have moved from my inner boundries
 
