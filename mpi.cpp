@@ -213,16 +213,19 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
 void get_particles_from_bins(std::vector<std::vector<bin>> &bins, int bin_i, int bin_j
                             , particle_t** send_particles, int &count){
     std::vector<particle_t *> _send_particles;
-    count = 0;
     for(int i = 0; i < bin_i; i ++){
         for(int j = 0; j < bin_j; j++){
             for(int k =0; k < bins[i][j].particles.size(); k++){
                 _send_particles.push_back(bins[i][j].particles[k]);
-                count++;
             }
         }
     }
-    send_particles = &_send_particles[0];
+    count = _send_particles.size();
+    *send_particles = (particle_t *) malloc(count * sizeof(particle_t));
+   
+    for(int i =0; i < count; i++)
+        send_particles[i] = _send_particles[i];
+    
 }
 
 
@@ -579,7 +582,10 @@ int main( int argc, char **argv )
 
         get_particles_from_bins(bins, i_dim, j_dim, &removed_particles, removed_particles_count);
         
+            
+        print_particles(&removed_particles, removed_particles_count);
 
+        
         std::cout<<"removed_count: "<< removed_particles_count << std::endl;
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
