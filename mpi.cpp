@@ -58,10 +58,6 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
                 int** partition_offset, int** partition_sizes){
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
     
-    int test_n_particles;
-    int temp_i = 0;
-    while( particles[temp_i] != NULL)
-        temp_i ++;
     int index = 0, count = 0;
     for(int i = 0; i < n_proc; i ++){
         *partition_offset[i] = index;
@@ -171,23 +167,24 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
     myXHigh= p_info.xHigh+ p_info.gxHigh;
     myYLow = p_info.yLow + p_info.gyLow;
     myYHigh= p_info.yHigh+ p_info.gyHigh;
-    
-    particle_t * new_local;
+    std::vector<particle_t*>  new_local;
+    std::vector<particle_t*> _not_my_particles;
     int new_nlocal = 0;
     count = 0;
+    
     for(int i = 0; i < nlocal; i++){
         //check if particls is not longer in the ghost or inner region
-        if(local[i]->x > myXLow && local[i]->x < myXHigh &&
-           local[i]->y >  myYLow && local[i]->y < myYHigh){
-           new_local[new_nlocal++] = *local[i];
+        if((*local)[i].x > myXLow && (*local)[i].x < myXHigh &&
+           (*local)[i].y >  myYLow && (*local)[i].y < myYHigh){
+            new_local.push_back(local[i]);
         }else{
-            not_my_particles[count++] = local[i];
+            _not_my_particles.push_back(local[i]);
         }
     }
-
     free(*local);
-    local = &new_local;
+    (*local) = new_local[0];
     nlocal = new_nlocal;
+    (*not_my_particles) = _not_my_particles[0];
 
 }
 
@@ -418,14 +415,23 @@ int main( int argc, char **argv )
     myY_low = procs_info[rank].yLow  + procs_info[rank].gyLow;
     myY_high= procs_info[rank].yHigh + procs_info[rank].gyHigh;
 
-
-
     //
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
+    //
+    //
+    //
+    //
+    //
     //XXX: delete before testing
+    //  >
+    //  >
+    //  >
     int temp_nsteps = 5;
+    //  >
+    //  >
+    
     for( int step = 0; step < temp_nsteps; step++ )
     {
         navg = 0;
@@ -442,8 +448,7 @@ int main( int argc, char **argv )
         for( int i = 0; i < nlocal; i ++){
             float relative_x = local[i].x - myX_low;
             float relative_y = local[i].y - myY_low;
-
-            assert(relative_x > 0 && relative_y > 0 && "Error in binning particle");
+            assert(relative_x >= 0 && relative_y >= 0 && "Error in binning particle");
             assert(relative_x < myX_high && "Error: out of bound binning");
             assert(relative_y < myY_high && "Error: out of bound binning");
 
@@ -451,7 +456,6 @@ int main( int argc, char **argv )
             int bin_j = floor(relative_x/CELL_SIZE);
             bins[bin_i][bin_j].particles.push_back(&local[i]);   
         }
-        
         //
         //  compute all forces
         //
@@ -473,6 +477,7 @@ int main( int argc, char **argv )
             for( int j = 0; j < j_dim; j++)
                 if(bins[i][j].status == GHOST)
                     bins[i][j].particles.clear();
+        
         
         if( find_option( argc, argv, "-no" ) == -1 )
         {
@@ -502,13 +507,13 @@ int main( int argc, char **argv )
         
         for(int i = 0; i < i_dim; i++){
             for(int j = 0; j < j_dim; j++){
-                std::vector<particle_t*> myParticles = bins[i][j].particles;
-                for(int k = 0; k < myParticles.size(); k++){
-                    move(*(myParticles[k]));
+                for(int k = 0; k < bins[i][j].particles.size(); k++){
+                    move(*bins[i][j].particles[k]);
                 }
             }
         }
-        
+       
+         
         // removed particles that have moved from my inner boundries
 
         particle_t* removed_particles;
