@@ -200,9 +200,9 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
         }
     }
     free(*local);
-    (*local) = new_local[0];
+    local = &new_local[0];
     nlocal = new_nlocal;
-    (*not_my_particles) = _not_my_particles[0];
+    not_my_particles = &_not_my_particles[0];
 
 }
 
@@ -533,6 +533,7 @@ int main( int argc, char **argv )
         //TODO: aggragate all particles that have moved from inner bin
         //TODO: only move particles that are in the INNER bin 
         
+        
         for(int i = 0; i < i_dim; i++){
             for(int j = 0; j < j_dim; j++){
                 for(int k = 0; k < bins[i][j].particles.size(); k++){
@@ -549,7 +550,7 @@ int main( int argc, char **argv )
         int removed_particles_count;
         find_not_my_particles(procs_info[rank],  &removed_particles, removed_particles_count,
                                 &local, nlocal, i_dim, j_dim);       
-
+        std::cout<<"removed_count: "<< removed_particles_count << std::endl;
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
                  &partition_offsets, &partition_sizes);
@@ -559,7 +560,7 @@ int main( int argc, char **argv )
         nlocal = 0;
         for(int i =0;i < n_proc;i++)
            nlocal += partition_sizes[i];
-        particles = removed_particles; 
+        local = removed_particles; 
     }
     simulation_time = read_timer( ) - simulation_time;
   
