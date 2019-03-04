@@ -93,20 +93,25 @@ void initCellParticles(std::vector<particle_t*> &src) {
 void packing(particle_t** particles, int n, struct proc_info * procs_info, int n_proc,
                 int** partition_offset, int** partition_sizes){
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
+//   std::cout<<"partitionSizes "<<(*partition_sizes)[0]<<" "<<std::endl;
+//   std::cout<<"partitionoffsets "<<(*partition_offset)[0]<<" "<<(*partition_offset)[1]<<std::endl;
    
     int index = 0, count = 0, i;
-    for(i = 0; i < n_proc + 1; i ++){
+    for(i = 0; i < n_proc ; i ++){
         *partition_offset[i] = index;
         count = 0;
         float xHi = procs_info[i].xHigh + procs_info[i].gxHigh;
         float xLo = procs_info[i].xLow + procs_info[i].gxLow;
         float yHi = procs_info[i].yHigh + procs_info[i].gyHigh;
         float yLo = procs_info[i].yLow + procs_info[i].gyLow;
+  //      std::cout<<"xHi "<<xHi<<" xLo "<<xLo<<" yHi "<<yHi<<" yLo "<<yLo<<std::endl;
+        //std::cout<<"gxHi "<<procs_info[i].gxHigh<<" gxLo "<<procs_info[i].gxLow<<" gyHi "<<procs_info[i].gyHigh<<" gyLo "<<procs_info[i].gyLow<<std::endl;
         for(int j = 0; j < n; j++){
             float xCord = (*particles)[j].x;
             float yCord = (*particles)[j].y;
+//            std::cout<<"xCord "<<xCord<<" yCord "<<yCord<<std::endl;
             // compare particle coordiantes to processor boundaries
-            if(xCord < xHi && xCord > xLo && yCord < yHi && yCord > yLo ) {
+            if(xCord <= xHi && xCord >= xLo && yCord <= yHi && yCord >= yLo ) {
                 new_particles[index] = (*particles)[j];
                 index++;
                 count++;
@@ -118,6 +123,8 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
    //TODO: need to fix this
    //free(*particles);
    particles = &new_particles;
+//   std::cout<<"partitionSizes "<<(*partition_sizes)[0]<<" "<<std::endl;
+//   std::cout<<"partitionoffsets "<<(*partition_offset)[0]<<" "<<(*partition_offset)[1]<<std::endl;
    
 };
 
@@ -138,9 +145,15 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
         else
             rdispls[i] = rdispls[i-1] + newPartitionSizes[i];
      }*/
-     MPI_Alltoallv( (const void *)  *particles, (const int *) *partitionSizes,
-		    (const int *) partitionOffsets, PARTICLE, newParticles,
-		    (const int *) newPartitionSizes, (const int *)rdispls, PARTICLE,
+   /*  std::cout<<"HELLO"<<std::endl;
+     std::cout<<"particles"<<std::endl;
+     print_particles(particles, numParticles);
+     std::cout<<"partitionSizes "<<(*partitionSizes)[0]<<std::endl;
+     std::cout<<"partitionOffsets "<<partitionOffsets[0]<<std::endl;
+   */  
+     MPI_Alltoallv( *particles, *partitionSizes,
+		     partitionOffsets, PARTICLE, newParticles,
+		     newPartitionSizes, rdispls, PARTICLE,
 		    MPI_COMM_WORLD
 	    	  );
      free(*particles);
@@ -292,7 +305,7 @@ int getWholeFactors(int n_proc, int &numProcsRow, int &numProcsColumn) {
  *	    xLow, yLow, xHigh, yHigh are stored as coordinates in space
  * */
 
-void initializeProcInfo(struct proc_info **proc_info, int space, int numCells, int numProcsRow, int numProcsColumn) {
+void initializeProcInfo(struct proc_info **proc_info, float space, int numCells, int numProcsRow, int numProcsColumn) {
    int procPointer = 0, rowProcCells = 0, columnProcCells = 0, rowProcCellsExtra = 0, columnProcCellsExtra = 0, iProcPointer = 0, jProcPointer = 0;
    rowProcCells = floor((numCells)/numProcsRow);
    columnProcCells = floor((numCells)/numProcsColumn);
@@ -307,6 +320,7 @@ void initializeProcInfo(struct proc_info **proc_info, int space, int numCells, i
      rowProcCellsExtra = numCells - rowProcCells * numProcsRow;
    }
    struct proc_info *info = NULL;
+//   std::cout<<"space "<<space<<" numCells "<<numCells<<" numProcsRow "<<numProcsRow<<" numProcsColumn "<<numProcsColumn<<" rowProcCells "<<rowProcCells<<" columnProcCells "<<columnProcCells<<std::endl;
 
    // the processor rank is stored in this order proc[column + row * numProcsColumn]
    // for processor get assigned based on the space getting filled by their numbers
