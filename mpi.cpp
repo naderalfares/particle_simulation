@@ -93,8 +93,6 @@ void initCellParticles(std::vector<particle_t*> &src) {
 void packing(particle_t** particles, int n, struct proc_info * procs_info, int n_proc,
                 int** partition_offset, int** partition_sizes){
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
-//   std::cout<<"partitionSizes "<<(*partition_sizes)[0]<<" "<<std::endl;
-//   std::cout<<"partitionoffsets "<<(*partition_offset)[0]<<" "<<(*partition_offset)[1]<<std::endl;
    
     int index = 0, count = 0, i;
     for(i = 0; i < n_proc ; i ++){
@@ -104,12 +102,9 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
         float xLo = procs_info[i].xLow + procs_info[i].gxLow;
         float yHi = procs_info[i].yHigh + procs_info[i].gyHigh;
         float yLo = procs_info[i].yLow + procs_info[i].gyLow;
-  //      std::cout<<"xHi "<<xHi<<" xLo "<<xLo<<" yHi "<<yHi<<" yLo "<<yLo<<std::endl;
-        //std::cout<<"gxHi "<<procs_info[i].gxHigh<<" gxLo "<<procs_info[i].gxLow<<" gyHi "<<procs_info[i].gyHigh<<" gyLo "<<procs_info[i].gyLow<<std::endl;
         for(int j = 0; j < n; j++){
             float xCord = (*particles)[j].x;
             float yCord = (*particles)[j].y;
-//            std::cout<<"xCord "<<xCord<<" yCord "<<yCord<<std::endl;
             // compare particle coordiantes to processor boundaries
             if(xCord <= xHi && xCord >= xLo && yCord <= yHi && yCord >= yLo ) {
                 new_particles[index] = (*particles)[j];
@@ -123,8 +118,6 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
    //TODO: need to fix this
    //free(*particles);
    particles = &new_particles;
-//   std::cout<<"partitionSizes "<<(*partition_sizes)[0]<<" "<<std::endl;
-//   std::cout<<"partitionoffsets "<<(*partition_offset)[0]<<" "<<(*partition_offset)[1]<<std::endl;
    
 };
 
@@ -145,12 +138,6 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
         else
             rdispls[i] = rdispls[i-1] + newPartitionSizes[i];
      }*/
-   /*  std::cout<<"HELLO"<<std::endl;
-     std::cout<<"particles"<<std::endl;
-     print_particles(particles, numParticles);
-     std::cout<<"partitionSizes "<<(*partitionSizes)[0]<<std::endl;
-     std::cout<<"partitionOffsets "<<partitionOffsets[0]<<std::endl;
-   */  
      MPI_Alltoallv( *particles, *partitionSizes,
 		     partitionOffsets, PARTICLE, newParticles,
 		     newPartitionSizes, rdispls, PARTICLE,
@@ -263,11 +250,11 @@ void get_particles_from_bins(std::vector<std::vector<bin>> &bins, int bin_i, int
         }
     }
     count = _send_particles.size();
-    *send_particles = (particle_t *) malloc(count * sizeof(particle_t));
-   
+    particle_t * temp = (particle_t *) malloc(count * sizeof(particle_t));
+     
     for(int i =0; i < count; i++)
-        send_particles[i] = _send_particles[i];
-    
+        temp[i] = *_send_particles[i];
+    *send_particles = temp;
 }
 
 
@@ -620,7 +607,10 @@ int main( int argc, char **argv )
             }
         }
        
-         
+        printf("particles after move\n");
+        print_particles(&local, nlocal);
+
+ 
         // removed particles that have moved from my inner boundries
         
         particle_t* removed_particles;
@@ -631,6 +621,9 @@ int main( int argc, char **argv )
 
         get_particles_from_bins(bins, i_dim, j_dim, &removed_particles, removed_particles_count);
         
+         
+        printf("particles from get particals\n");
+        print_particles(&removed_particles, removed_particles_count); 
             
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
