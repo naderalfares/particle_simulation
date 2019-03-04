@@ -210,6 +210,23 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
 }
 
 
+void get_particles_from_bins(std::vector<std::vector<bin>> &bins, int bin_i, int bin_j
+                            , particle_t** send_particles, int &count){
+    std::vector<particle_t *> _send_particles;
+    count = 0;
+    for(int i = 0; i < bin_i; i ++){
+        for(int j = 0; j < bin_j; j++){
+            for(int k =0; k < bins[i][j].particles.size(); k++){
+                _send_particles.push_back(bins[i][j].particles[k]);
+                count++;
+            }
+        }
+    }
+    send_particles = &_send_particles[0];
+}
+
+
+
 
 // given a number n find the two numbers x,y 
 // n = x*y such that |x-y| is the smallest
@@ -554,11 +571,16 @@ int main( int argc, char **argv )
         print_particles(&local, nlocal);
          
         // removed particles that have moved from my inner boundries
-
+        
         particle_t* removed_particles;
         int removed_particles_count;
-        find_not_my_particles(procs_info[rank],  &removed_particles, removed_particles_count,
-                                &local, nlocal, i_dim, j_dim);       
+
+        //find_not_my_particles(procs_info[rank],  &removed_particles, removed_particles_count,
+                                //&local, nlocal, i_dim, j_dim);       
+
+        get_particles_from_bins(bins, i_dim, j_dim, &removed_particles, removed_particles_count);
+        
+
         std::cout<<"removed_count: "<< removed_particles_count << std::endl;
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
