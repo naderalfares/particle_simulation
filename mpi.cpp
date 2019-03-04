@@ -45,14 +45,15 @@ void print_particles( particle_t** particles, int n ){
 void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, int j_dim, int bin_i, int bin_j
                         ,std::vector<bin> &neighbors){
      for(int i = -1; i < 2; i++){
-            int nrow = bin_i - i;
+            int nrow = bin_i + i;
         for( int j = -1; j < 2; j++){
-            int ncol = bin_j - j;
-            if(nrow >= 0 && ncol >= 0 && nrow < i_dim && ncol < j_dim){
+            int ncol = bin_j + j;
+            if(nrow > 0 && ncol > 0 && nrow < i_dim && ncol < j_dim){
                 neighbors.push_back(bins[i][j]);
             }
         }
-    }    
+    }
+      neighbors.push_back(bins[bin_i][bin_j]);
 }
        
 
@@ -154,8 +155,7 @@ void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struc
     // start from left bin ghost if existed
     //  or start fron inner bin where gxLow = 0
     start_x = p_info.xLow + p_info.gxLow;
-    assert(start_x > 0 && "Error in grid init");
-    
+    assert(start_x >= 0 && "Error in grid init");
     // go through coloumns, which in the x axis of the space  
     for(int j = 0; j < dim_x; j++){
         start_y = p_info.yLow + p_info.gyLow;
@@ -173,6 +173,8 @@ void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struc
         }
         start_x += CELL_SIZE;
         }
+
+    
 }
 
 
@@ -206,6 +208,8 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
     not_my_particles = &_not_my_particles[0];
 
 }
+
+
 
 // given a number n find the two numbers x,y 
 // n = x*y such that |x-y| is the smallest
@@ -427,7 +431,10 @@ int main( int argc, char **argv )
     int    i_dim            = ( (myInfo.yHigh + myInfo.gyHigh) - (myInfo.yLow + myInfo.gyLow) ) / CELL_SIZE;
     //  used truncating vectors for passing by refrence simplicity
     std::vector<std::vector<bin>> bins (i_dim, std::vector<bin> (j_dim, bin()));
-        
+    
+    initializeGrid(myInfo, bins, j_dim, i_dim);
+
+   
     // this procs info
     float myX_high, myX_low;
     float myY_high, myY_low;
@@ -452,9 +459,9 @@ int main( int argc, char **argv )
     int temp_nsteps = 5;
     //  >
     //  >
-   
+     
     print_particles(&local, nlocal);
-
+    printf("^^^^ before time loop\n");
      
     for( int step = 0; step < temp_nsteps; step++ )
     {
@@ -488,6 +495,7 @@ int main( int argc, char **argv )
         for(int j = 0; j < j_dim; j++){
             for( int i = 0; i < i_dim; i++){
                 if(bins[i][j].status == INNER){
+                    
                     initCellParticles(bins[i][j].particles);
                     findMeAndMyNeighbors(bins, i_dim, j_dim, i, j, neighbors);
                     for( int k = 0; k < neighbors.size(); k++){
@@ -498,13 +506,15 @@ int main( int argc, char **argv )
         }
         
         
+            printf("before clearing\n"); 
         
         // clear neighbor bins
         for(int i = 0; i < i_dim; i ++)
             for( int j = 0; j < j_dim; j++)
                 if(bins[i][j].status == GHOST)
                     bins[i][j].particles.clear();
-        
+
+                
         
         if( find_option( argc, argv, "-no" ) == -1 )
         {
