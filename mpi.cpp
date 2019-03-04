@@ -384,7 +384,9 @@ int main( int argc, char **argv )
     proc_info*  procs_info = (proc_info*) malloc( n_proc * sizeof(proc_info));
     int numProcsRow = 0, numProcsColumn = 0; 
     
+    // get two number that multiple to n_procs 
     getWholeFactors(n_proc, numProcsRow, numProcsColumn);
+    // initialize the boundary condition of each processor
     initializeProcInfo(&procs_info, size, numCells, numProcsRow, numProcsColumn);
 
     //
@@ -516,9 +518,16 @@ int main( int argc, char **argv )
         find_not_my_particles(procs_info[rank],  &removed_particles, removed_particles_count,
                                 &local, nlocal, i_dim, j_dim);       
 
-        
-                    
-        
+        // packing particles to be communicated to the other processors
+        packing(&removed_particles, removed_particles_count, procs_info, n_proc,
+                 &partition_offsets, &partition_sizes);
+	// communicating particles that have moved to the domain of other particles
+	// particles that have 
+	communicateData(&removed_particles,  &partition_sizes, partition_offsets, n_proc, PARTICLE);
+        nlocal = 0;
+        for(int i =0;i < n_proc;i++)
+           nlocal += partition_sizes[i];
+        particles = removed_particles; 
     }
     simulation_time = read_timer( ) - simulation_time;
   
