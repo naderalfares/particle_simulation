@@ -49,7 +49,7 @@ void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, in
         for( int j = -1; j < 2; j++){
             int ncol = bin_j + j;
             if(nrow > 0 && ncol > 0 && nrow < i_dim && ncol < j_dim){
-                neighbors.push_back(bins[i][j]);
+                neighbors.push_back(bins[nrow][ncol]);
             }
         }
     }
