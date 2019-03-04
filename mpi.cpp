@@ -5,7 +5,7 @@
 #include "common.h"
 #include<vector>
 #include<math.h>
-
+#include<iostream>
 // TODO: keep the cell_size fixed at 0.1 so that the entire space is integrally divisible by cell size
 #define CELL_SIZE 0.01
 #define density 0.0005
@@ -76,8 +76,8 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
                 int** partition_offset, int** partition_sizes){
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
     
-    int index = 0, count = 0;
-    for(int i = 0; i < n_proc; i ++){
+    int index = 0, count = 0, i;
+    for(i = 0; i < n_proc; i ++){
         *partition_offset[i] = index;
         count = 0;
         int xHi = procs_info[i].xHigh + procs_info[i].gxHigh;
@@ -96,7 +96,8 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
         }
        *partition_sizes[i] = count;
     }
-
+   
+   *partition_offset[i] = index;
    free(*particles);
    particles = &new_particles;
    
@@ -131,7 +132,7 @@ void initialParticleScatter(particle_t **particles, int &numParticles, int **par
     if(*partitionSizes == NULL)
 	*partitionSizes = (int *)malloc (sizeof(int) * numProcs);
     if(*partitionOffsets == NULL)
-        *partitionOffsets = (int *) malloc(sizeof(int) * numProcs);
+        *partitionOffsets = (int *) malloc(sizeof(int) * (numProcs+1));
 
     // create the partitions for each processor to be received 
     if(rank==0)
@@ -322,7 +323,7 @@ void initializeProcInfo(struct proc_info **proc_info, int space, int numCells, i
 //  benchmarking program
 //
 int main( int argc, char **argv )
-{    
+{	
     int navg, nabsavg=0;
     double dmin, absmin=1.0,davg,absavg=0.0;
     double rdavg,rdmin;
@@ -381,8 +382,6 @@ int main( int argc, char **argv )
     int *partition_sizes = (int*) malloc( n_proc * sizeof(int) );
     for( int i = 0; i < n_proc; i++ )
         partition_sizes[i] = partition_offsets[i+1] - partition_offsets[i];
-  
-     
 
     //
     //  allocate storage for local partition
