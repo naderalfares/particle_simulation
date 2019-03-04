@@ -191,44 +191,115 @@ void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particle
 
 }
 
+// given a number n find the two numbers x,y 
+// n = x*y such that |x-y| is the smallest
+int getWholeFactors(int n_proc, int &numProcsRow, int &numProcsColumn) {
+  int sqrtNProc = floor(sqrt(n_proc));
+    if(pow( sqrtNProc, 2) == n_proc)
+      numProcsRow = numProcsColumn = sqrtNProc;
+    else {
+      for(int i=sqrtNProc; i < n_proc; i++)
+        if(n_proc%i == 0) {
+           numProcsRow = i;
+           numProcsColumn = n_proc/i;
+           return 0;
+        }
+    }
+  return 0;
+}
+
 
 /*
  * intialize proc_info on all the processors for the first time only
  * based on the following represented boundary condition
- *      yLow
+ *      	yLow
  *	    ________
  *	    |      |
- * xLow	|      | xHigh
+ *   xLow   | 	   |	xHigh
  *	    |      |
  *	    --------
  *	    yHigh
+ *
+ *	    xLow, yLow, xHigh, yHigh are stored as coordinates in space
  * */
 
-void initializeProcInfo(struct proc_info **proc_info, int space) {
-   int procPointer = 0;
-   for(int i=0; i < space; i+=CELL_SIZE) {
-      struct proc_info *info = &((*proc_info)[procPointer]);
-      info->yLow = i * CELL_SIZE;
-      info->yHigh = (i+1) * CELL_SIZE;
-      info->xLow = i * CELL_SIZE;
-      info->xHigh = (i+1) * CELL_SIZE;
-      if(info->yLow == 0) 
-        info->gyLow = 0;
-      else
-        info->gyLow = -CELL_SIZE;
-      if(info->yHigh == space) 
-	info->gyHigh = 0;
-      else
-        info->gyHigh = CELL_SIZE;
-      if(info->xLow == 0) 
-        info->gxLow = 0;
-      else
-        info->gxLow = -CELL_SIZE;
-      if(info->xHigh==space) 
-	info->gxHigh=0;
-      else 
-        info->gxHigh = CELL_SIZE;
+void initializeProcInfo(struct proc_info **proc_info, int space, int numCells, int numProcsRow, int numProcsColumn) {
+   int procPointer = 0, rowProcCells = 0, columnProcCells = 0, rowProcCellsExtra = 0, columnProcCellsExtra = 0, iProcPointer = 0, jProcPointer = 0;
+   rowProcCells = floor((numCells)/numProcsRow);
+   columnProcCells = floor((numCells)/numProcsColumn);
+   // if the num of cells is not divisible by the num of procs
+   // then there will be a few cells over cells
+   if (columnProcCells * numProcsColumn < numCells)
+   {
+     columnProcCellsExtra = numCells - columnProcCells * numProcsColumn;
    }
+   else if(rowProcCells * numProcsRow < numCells)
+   {
+     rowProcCellsExtra = numCells - rowProcCells * numProcsRow;
+   }
+   struct proc_info *info = NULL;
+
+   // the processor rank is stored in this order proc[column + row * numProcsColumn]
+   // for processor get assigned based on the space getting filled by their numbers
+   // if a few cells will be left in both rows and columns to which procs will asssigned later
+   // if there are no cells left the high values of coordinates will be assigned correctly
+   for(int i=0; i < rowProcCells * numProcsRow; i += rowProcCells) {
+       jProcPointer = 0;
+       for(int j = 0; j < columnProcCells * numProcsColumn; j += columnProcCells) {
+   	info = &((*proc_info)[jProcPointer + numProcsColumn * iProcPointer]);
+	// selet the y coordinates of boundary
+        info->yLow = i * CELL_SIZE; // coordinates in space hence multiplied by cell size
+        info->yHigh = (i+rowProcCells) * CELL_SIZE;
+        if(info->yLow == 0) 
+          info->gyLow = 0;
+        else
+          info->gyLow = -CELL_SIZE;
+
+        if(info->yHigh == space) 
+ 	  info->gyHigh = 0;
+        else
+          info->gyHigh = CELL_SIZE;
+	// selet the x coordinates of boundary
+        info->xLow = j * CELL_SIZE;
+        info->xHigh = (j+columnProcCells) * CELL_SIZE;
+        if(info->xLow == 0) 
+           info->gxLow = 0;
+        else
+          info->gxLow = -CELL_SIZE;
+
+        if(info->xHigh==space) 
+ 	  info->gxHigh=0;
+        else 
+           info->gxHigh = CELL_SIZE;
+        jProcPointer++;
+     }
+     iProcPointer++;
+   }
+
+   // The column cells that are leftover are assigned to the last column of processors
+   // by extending there xHigh, gxHigh values only
+   if(columnProcCellsExtra != 0) {
+     iProcPointer = 0;
+     for(int i=0; i < rowProcCells * numProcsRow; i += rowProcCells) {
+   	info = &((*proc_info)[(numProcsColumn-1) + numProcsColumn * iProcPointer]);
+        info->xHigh = space;
+        info->gxHigh = 0;
+        iProcPointer++;
+     }
+   }
+   
+   // The rows cells that are leftover are assigned to the last row of processors
+   // by extending there yHigh, gyHigh values only
+   if(rowProcCellsExtra != 0) {
+     jProcPointer = 0;
+     for(int j = 0; j < columnProcCells * numProcsColumn; j += columnProcCells) {
+   	info = &((*proc_info)[jProcPointer + numProcsColumn * (numProcsRow-1)]);
+        info->yHigh = space;
+        info->gyHigh = 0;
+        jProcPointer++;
+     }
+   }
+   
 }
 
 
@@ -311,7 +382,10 @@ int main( int argc, char **argv )
     const double size = sqrt(density * n);
     const int numCells = ceil(size/CELL_SIZE);
     proc_info*  procs_info = (proc_info*) malloc( n_proc * sizeof(proc_info));
-    initializeProcInfo(&procs_info, size);
+    int numProcsRow = 0, numProcsColumn = 0; 
+    
+    getWholeFactors(n_proc, numProcsRow, numProcsColumn);
+    initializeProcInfo(&procs_info, size, numCells, numProcsRow, numProcsColumn);
 
     //
     //  initialize and distribute the particles (that's fine to leave it unoptimized)
