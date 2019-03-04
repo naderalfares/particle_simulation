@@ -438,7 +438,6 @@ int main( int argc, char **argv )
     nlocal = n;
     local  = particles;
     
-    
 
     //  initilize local bins
     //
