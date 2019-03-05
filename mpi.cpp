@@ -126,34 +126,16 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
      // calculate the total particles = sum of all the particles to be send including the ones replicated
      for(int i=0; i < nprocs; i++)
         numParticles += *partitionSizes[i];
-/*     int* totalNumParticles = (int*) malloc(sizeof(int) * nprocs);
-     int* totalNumParticles_offset = (int*) malloc(sizeof(int) * nprocs);
-     for(int i =0; i < nprocs; i++){
-        MPI_Allreduce(partitionSizes[i], &totalNumParticles, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-        if(i == 0)
-            totalNumParticles_offset[i] = 0;
-        else
-            totalNumParticles_offset[i] = totalNumParticles_offset[i - 1] + totalNumParticles[i-1];
-     }
-     MPI_Barrier(MPI_COMM_WORLD);
-     printf("2\n");*/
      // receive the new particles after all to all
-     int *partitionSizeMetaData = (int *)malloc(sizeof(int)*nprocs);
-     int *partitionOffsetMetaData = (int *)malloc(sizeof(int)*(nprocs+1));
      int *newPartitionSizes = (int *)malloc(sizeof(int)*nprocs);
      int *newPartitionOffsets = (int *)malloc(sizeof(int)*(nprocs+1));
      int i;
-     for( i=0; i < nprocs;i++) {
-	partitionSizeMetaData[i] = 1;
-        partitionOffsetMetaData[i] = i;
-     }
-     partitionOffsetMetaData[i] = i;
-     MPI_Alltoallv(*partitionSizes, partitionSizeMetaData,
-		    partitionOffsetMetaData, MPI_INT, newPartitionSizes,
-		    partitionSizeMetaData, partitionOffsetMetaData, MPI_INT,
+     MPI_Alltoall(*partitionSizes, 1,
+		    MPI_INT, newPartitionSizes,
+		    1, MPI_INT,
 		    MPI_COMM_WORLD);
-    newPartitionOffsets[0] = 0;
-    for( i=1; i < nprocs+1;i++) {
+     newPartitionOffsets[0] = 0;
+     for( i=1; i < nprocs+1;i++) {
 	newPartitionOffsets[i] = newPartitionOffsets[i-1] + newPartitionSizes[i-1];
      }
      particle_t *newParticles = (particle_t*)malloc(sizeof(particle_t) * numParticles);
@@ -162,9 +144,6 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
 		      newPartitionSizes, newPartitionOffsets, PARTICLE,
 		    MPI_COMM_WORLD
 	    	  );
-    // MPI_Barrier(MPI_COMM_WORLD);
-     //free(*particles);
-    //free(*partitionSizes);
      particles = &newParticles;
      partitionSizes = &newPartitionSizes;
 }
