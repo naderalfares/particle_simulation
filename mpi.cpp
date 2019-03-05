@@ -7,7 +7,7 @@
 #include<math.h>
 #include<iostream>
 // TODO: keep the cell_size fixed at 0.1 so that the entire space is integrally divisible by cell size
-#define CELL_SIZE 0.01
+#define CELL_SIZE 0.02
 #define density 0.0005
 
 
@@ -93,18 +93,17 @@ void initCellParticles(std::vector<particle_t*> &src) {
 void packing(particle_t** particles, int n, struct proc_info * procs_info, int n_proc,
                 int** partition_offset, int** partition_sizes){
     particle_t* new_particles = (particle_t *) malloc(n * sizeof(particle_t));
-   
     int index = 0, count = 0, i;
     for(i = 0; i < n_proc ; i ++){
         *partition_offset[i] = index;
         count = 0;
-        float xHi = procs_info[i].xHigh + procs_info[i].gxHigh;
-        float xLo = procs_info[i].xLow + procs_info[i].gxLow;
-        float yHi = procs_info[i].yHigh + procs_info[i].gyHigh;
-        float yLo = procs_info[i].yLow + procs_info[i].gyLow;
+        double xHi = procs_info[i].xHigh + procs_info[i].gxHigh;
+        double xLo = procs_info[i].xLow + procs_info[i].gxLow;
+        double yHi = procs_info[i].yHigh + procs_info[i].gyHigh;
+        double yLo = procs_info[i].yLow + procs_info[i].gyLow;
         for(int j = 0; j < n; j++){
-            float xCord = (*particles)[j].x;
-            float yCord = (*particles)[j].y;
+            double xCord = (*particles)[j].x;
+            double yCord = (*particles)[j].y;
             // compare particle coordiantes to processor boundaries
             if(xCord <= xHi && xCord >= xLo && yCord <= yHi && yCord >= yLo ) {
                 new_particles[index] = (*particles)[j];
@@ -116,8 +115,9 @@ void packing(particle_t** particles, int n, struct proc_info * procs_info, int n
    }
    *partition_offset[i] = index;
    //TODO: need to fix this
-   //free(*particles);
-   particles = &new_particles;
+   if(!particles)
+     free(*particles);
+   *particles = new_particles;
    
 };
 
@@ -126,6 +126,7 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
      // calculate the total particles = sum of all the particles to be send including the ones replicated
      for(int i=0; i < nprocs; i++)
         numParticles += *partitionSizes[i];
+     //std::cout<<"numParticles "<<numParticles<<std::endl;
      // receive the new particles after all to all
      int *newPartitionSizes = (int *)malloc(sizeof(int)*nprocs);
      int *newPartitionOffsets = (int *)malloc(sizeof(int)*(nprocs+1));
@@ -139,13 +140,23 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
 	newPartitionOffsets[i] = newPartitionOffsets[i-1] + newPartitionSizes[i-1];
      }
      particle_t *newParticles = (particle_t*)malloc(sizeof(particle_t) * numParticles);
+     //std::cout<<"particles before "<<std::endl;
+     //print_particles(particles, numParticles);
      MPI_Alltoallv(  *particles, *partitionSizes,
 		      partitionOffsets, PARTICLE, newParticles,
 		      newPartitionSizes, newPartitionOffsets, PARTICLE,
 		    MPI_COMM_WORLD
 	    	  );
-     particles = &newParticles;
-     partitionSizes = &newPartitionSizes;
+     if(*particles!=NULL)
+       free(*particles);
+     if(*partitionSizes!=NULL)
+       free(*partitionSizes);
+     *particles = newParticles;
+     *partitionSizes = newPartitionSizes;
+     //std::cout<<*partitionSizes[0]<<"particles after communicate"<<std::endl;
+     //print_particles(particles, *partitionSizes[0]);
+     //std::cout<<"particles after "<<std::endl;
+    // print_particles(particles, newPartitionSizes[0]);
 }
 
 // The first initialized particles and proc_info will be scattered to the respective processors
@@ -258,7 +269,7 @@ int getWholeFactors(int n_proc, int &numProcsRow, int &numProcsColumn) {
  *	    xLow, yLow, xHigh, yHigh are stored as coordinates in space
  * */
 
-void initializeProcInfo(struct proc_info **proc_info, float space, int numCells, int numProcsRow, int numProcsColumn) {
+void initializeProcInfo(struct proc_info **proc_info, double space, int numCells, int numProcsRow, int numProcsColumn) {
    int procPointer = 0, rowProcCells = 0, columnProcCells = 0, rowProcCellsExtra = 0, columnProcCellsExtra = 0, iProcPointer = 0, jProcPointer = 0;
    rowProcCells = floor((numCells)/numProcsRow);
    columnProcCells = floor((numCells)/numProcsColumn);
@@ -571,6 +582,9 @@ int main( int argc, char **argv )
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
                  &partition_offsets, &partition_sizes);
+       // std::cout<<"Iteration step "<<step<<" "<<removed_particles_count<<" particles before communicate"<<std::endl;
+       // print_particles(&removed_particles, removed_particles_count);
+        //print_particles(&removed_particles, removed_particles_count);
 	// communicating particles that have moved to the domain of other particles
 	// particles that have 
 	communicateData(&removed_particles,  &partition_sizes, partition_offsets, n_proc, PARTICLE);
@@ -578,6 +592,8 @@ int main( int argc, char **argv )
         for(int i =0;i < n_proc;i++)
            nlocal += partition_sizes[i];
         local = removed_particles; 
+        //std::cout<<"Iteration step "<<step<<" "<<nlocal<<" particles after communicate"<<std::endl;
+        //print_particles(&local, nlocal);
     }
     simulation_time = read_timer( ) - simulation_time;
   
