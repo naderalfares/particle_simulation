@@ -462,21 +462,8 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-    //
-    //
-    //
-    //
-    //
-    //XXX: delete before testing
-    //  >
-    //  >
-    //  >
-    int temp_nsteps = 5;
-    //  >
-    //  >
      
-     
-    for( int step = 0; step < temp_nsteps; step++ )
+    for( int step = 0; step < NSTEPS; step++ )
     {
         navg = 0;
         dmin = 1.0;
