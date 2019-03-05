@@ -126,24 +126,29 @@ void communicateData(particle_t **particles,  int **partitionSizes, int *partiti
      // calculate the total particles = sum of all the particles to be send including the ones replicated
      for(int i=0; i < nprocs; i++)
         numParticles += *partitionSizes[i];
-
+        printf("1\n");
+     int* totalNumParticles = (int*) malloc(sizeof(int) * nprocs);
+     int* totalNumParticles_offset = (int*) malloc(sizeof(int) * nprocs);
+     for(int i =0; i < nprocs; i++){
+        MPI_Allreduce(partitionSizes[i], &totalNumParticles, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if(i == 0)
+            totalNumParticles_offset[i] = 0;
+        else
+            totalNumParticles_offset[i] = totalNumParticles_offset[i - 1] + totalNumParticles[i-1];
+     }
+     MPI_Barrier(MPI_COMM_WORLD);
+     printf("2\n");
      // receive the new particles after all to all
      particle_t *newParticles = (particle_t*)malloc(sizeof(particle_t) * numParticles);
      int *newPartitionSizes = (int *)malloc(sizeof(int) * nprocs);
-     int *rdispls           = (int *)malloc(sizeof(int) * nprocs); 
-     /* 
-     for(int i =0; i < nprocs; i++){    
-        if( i == 0 ) 
-            rdispls[i] = 0;
-        else
-            rdispls[i] = rdispls[i-1] + newPartitionSizes[i];
-     }*/
-     MPI_Alltoallv( *particles, *partitionSizes,
-		     partitionOffsets, PARTICLE, newParticles,
-		     newPartitionSizes, rdispls, PARTICLE,
+     printf("3\n");
+     MPI_Alltoallv((const int* ) *particles, (const int *)*partitionSizes,
+		     (const int *) partitionOffsets, PARTICLE, newParticles,
+		     (const int *) totalNumParticles,(const int *)  totalNumParticles_offset, PARTICLE,
 		    MPI_COMM_WORLD
 	    	  );
-     free(*particles);
+     MPI_Barrier(MPI_COMM_WORLD);
+        free(*particles);
      free(*partitionSizes);
      particles = &newParticles;
      partitionSizes = &newPartitionSizes;
@@ -163,8 +168,6 @@ void initialParticleScatter(particle_t **particles, int &numParticles, int **par
     if(rank==0){
 	packing(particles, numParticles, pinfo, numProcs,
                 partitionOffsets, partitionSizes);
-    std::cout << "proc " << rank << " particles after packing for intit scatter" << std::endl;
-    print_particles(particles, numParticles);
     }
     particle_t *local = (particle_t *)malloc(sizeof(particle_t) * numParticles);
     int nlocal = numParticles/numProcs;
@@ -206,37 +209,6 @@ void initializeGrid(const struct proc_info p_info, std::vector<std::vector<struc
     
 }
 
-
-
-
-void find_not_my_particles(const proc_info p_info, particle_t ** not_my_particles, int &count,
-                           particle_t** local, int &nlocal, 
-                           const int i_dim, const int j_dim){
-    float myXLow, myXHigh, myYLow, myYHigh;
-    myXLow = p_info.xLow + p_info.gxLow;
-    myXHigh= p_info.xHigh+ p_info.gxHigh;
-    myYLow = p_info.yLow + p_info.gyLow;
-    myYHigh= p_info.yHigh+ p_info.gyHigh;
-    std::vector<particle_t*>  new_local;
-    std::vector<particle_t*> _not_my_particles;
-    int new_nlocal = 0;
-    count = 0;
-    
-    for(int i = 0; i < nlocal; i++){
-        //check if particls is not longer in the ghost or inner region
-        if((*local)[i].x > myXLow && (*local)[i].x < myXHigh &&
-           (*local)[i].y >  myYLow && (*local)[i].y < myYHigh){
-            new_local.push_back(local[i]);
-        }else{
-            _not_my_particles.push_back(local[i]);
-        }
-    }
-    free(*local);
-    local = &new_local[0];
-    nlocal = new_nlocal;
-    not_my_particles = &_not_my_particles[0];
-
-}
 
 
 void get_particles_from_bins(std::vector<std::vector<bin>> &bins, int bin_i, int bin_j
@@ -464,9 +436,6 @@ int main( int argc, char **argv )
     
     if( rank == 0 ){
         init_particles( n, particles );
-        std::cout<< "proc " << rank << " init particles" << std::endl;
-        print_particles(&particles, n);
-
     }
     //MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
     //scatter particles 
@@ -519,13 +488,6 @@ int main( int argc, char **argv )
         dmin = 1.0;
         davg = 0.0;
        
-
-        std::cout << "proc " << rank << " particles in time " << step << std::endl;
-        print_particles(&local, nlocal);
-
-
-
- 
         //
         //  save current step if necessary (slightly different semantics than in other codes)
         //
@@ -607,10 +569,6 @@ int main( int argc, char **argv )
             }
         }
        
-        printf("particles after move\n");
-        print_particles(&local, nlocal);
-
- 
         // removed particles that have moved from my inner boundries
         
         particle_t* removed_particles;
@@ -621,10 +579,6 @@ int main( int argc, char **argv )
 
         get_particles_from_bins(bins, i_dim, j_dim, &removed_particles, removed_particles_count);
         
-         
-        printf("particles from get particals\n");
-        print_particles(&removed_particles, removed_particles_count); 
-            
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
                  &partition_offsets, &partition_sizes);
