@@ -573,6 +573,14 @@ int main( int argc, char **argv )
 
         get_particles_from_bins(bins, i_dim, j_dim, &removed_particles, removed_particles_count);
         
+        for(int i = 0; i < i_dim; i++){
+            for(int j = 0; j < j_dim; j++){
+            
+                bins[i][j].particles.clear();
+            
+            }
+        }
+
         // packing particles to be communicated to the other processors
         packing(&removed_particles, removed_particles_count, procs_info, n_proc,
                  &partition_offsets, &partition_sizes);
