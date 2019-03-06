@@ -65,12 +65,13 @@ void findMeAndMyNeighbors(const std::vector<std::vector<bin>> bins,int i_dim, in
             int nrow = bin_i + i;
         for( int j = -1; j < 2; j++){
             int ncol = bin_j + j;
-            if(nrow > 0 && ncol > 0 && nrow < i_dim && ncol < j_dim){
+            if(nrow >= 0 && ncol >= 0 && nrow < i_dim && ncol < j_dim){
                 neighbors.push_back(bins[nrow][ncol]);
             }
         }
     }
       neighbors.push_back(bins[bin_i][bin_j]);
+
 }
        
 
@@ -512,6 +513,7 @@ int main( int argc, char **argv )
                     for( int k = 0; k < neighbors.size(); k++){
                         apply_forces_to_cell(bins[i][j].particles, neighbors[k].particles, &navg, &dmin, &davg);
                     }
+                    neighbors.clear();
                 }
             }
         }
